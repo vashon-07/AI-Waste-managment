@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Report Waste - AI WasteWatch</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+          <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+
+    <header>
+
+        <div class="logo">
+            ♻️ AI WasteWatch
+        </div>
+
+        <nav>
+            <a href="/">Home</a>
+            <a href="/report" class="active">Report Waste</a>
+            <a href="#">Login</a>
+        </nav>
+
+    </header>
+
+
+    <!-- Report Section -->
+
+    <main class="report-page">
+
+        <div class="report-container">
+
+            <div class="report-header">
+
+                <div class="report-icon">
+                    📸
+                </div>
+
+                <p class="tagline">
+                    HELP BUILD A CLEANER BHARAT
+                </p>
+
+                <h1>
+                    Report <span>Waste</span>
+                </h1>
+
+                <p>
+                    Spotted a garbage problem?
+                    Report it and let AI help prioritize the cleanup.
+                </p>
+
+            </div>
+
+
+<form class="report-form" action="/submit-report" method="POST" enctype="multipart/form-data">           <!-- Image -->
+
+                <div class="form-section">
+
+                    <label>
+                        📸 Waste Image
+                    </label>
+
+                    <div class="upload-box">
+
+                        <div class="upload-icon">
+                            📷
+                        </div>
+
+                        <h3>
+                            Upload a photo
+                        </h3>
+
+                        <p>
+                            Take a clear photo of the waste problem
+                        </p>
+         <input
+       type="file"
+    id="waste-image"
+     name="image"
+    accept="image/*"
+>
+
+<label
+    for="waste-image"
+    class="upload-button">
+    📁 Upload Image
+</label>
+
+
+<button
+    type="button"
+    class="camera-button"
+    id="take-photo">
+    📸 Take Photo
+</button>
+
+
+     <img
+     id="image-preview"
+     src=""
+     alt="Selected waste image"
+      style="display: none;">
+    </div>
+
+    <img
+    id="image-preview"
+    src=""
+    alt="Selected waste image"
+    style="display: none;">
+
+</div>
+
+<div
+    id="photo-actions"
+    class="photo-actions"
+    style="display: none;">
+
+    <button
+        type="button"
+        id="retake-photo"
+        class="retake-button">
+        🔄 Retake Photo
+    </button>
+
+    <button
+        type="button"
+        id="use-photo"
+        class="use-photo-button">
+        ✓ Use This Photo
+    </button>
+
+</div>
+
+
+    <!-- Camera Modal -->
+
+<div id="camera-modal" class="camera-modal">
+
+    <div class="camera-box">
+
+        <h2>📸 Take Photo</h2>
+
+        <p class="camera-description">
+            Select a camera and capture the waste image.
+        </p>
+
+        <div class="camera-selector">
+
+            <label for="camera-select">
+                Camera
+            </label>
+
+            <select id="camera-select">
+                <option value="">
+                    Detecting cameras...
+                </option>
+            </select>
+
+        </div>
+
+        <video
+            id="camera"
+            autoplay
+            playsinline>
+        </video>
+
+        <canvas
+            id="canvas"
+            style="display: none;">
+        </canvas>
+
+        <div class="camera-controls">
+
+            <button
+                type="button"
+                id="capture-photo"
+                class="capture-button">
+                📷 Capture Photo
+            </button>
+
+            <button
+                type="button"
+                id="close-camera"
+                class="close-camera-button">
+                ✕ Close
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Camera Warning -->
+
+<div id="camera-warning" class="camera-warning">
+
+    <div class="warning-box">
+
+        <div class="warning-icon">
+            ⚠️
+        </div>
+
+        <h2>Camera Not Available</h2>
+
+        <p id="warning-message">
+            This device does not have a compatible camera,
+            or camera access is currently unavailable.
+        </p>
+
+        <button
+            type="button"
+            id="close-warning">
+            OK
+        </button>
+
+    </div>
+
+</div>
+
+
+                <!-- Description -->
+
+                <div class="form-section">
+
+                    <label for="description">
+                        📝 Describe the problem
+                    </label>
+
+                    <textarea id="description" name="description"
+                        placeholder="Example: Large amount of plastic waste dumped near the road..."
+                    ></textarea>
+
+                </div>
+
+
+                <!-- Location -->
+
+              <div class="form-section">
+
+    <label for="location">
+        📍 Location
+    </label>
+
+    <div class="location-input">
+
+        <input
+            type="text"
+            id="location"
+            placeholder="Location will appear here..."
+            readonly
+        >
+     <input type="hidden" id="latitude" name="latitude">
+<input type="hidden" id="longitude" name="longitude">
+<input type="hidden" id="address" name="address">
+    </div>
+
+    <div class="location-options">
+
+        <button
+            type="button"
+            class="location-button"
+            id="detect-location">
+            📍 Detect Location
+        </button>
+
+        <button
+            type="button"
+            class="map-button"
+            id="select-map">
+            🗺️ Select on Map
+        </button>
+
+    </div>
+
+
+    <!-- Map Window -->
+
+<div id="map-modal" class="map-modal">
+
+    <div class="map-box">
+
+        <h2>🗺️ Select Waste Location</h2>
+
+        <p>
+            Click on the map to place the pin exactly where the waste is located.
+        </p>
+
+        <div id="waste-map"></div>
+
+        <div class="map-controls">
+
+            <button
+                type="button"
+                id="confirm-map"
+                class="confirm-map-button">
+                ✓ Confirm Location
+            </button>
+
+            <button
+                type="button"
+                id="close-map"
+                class="close-map-button">
+                ✕ Cancel
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+</div>
+
+                <!-- AI Notice -->
+
+                <div class="ai-notice">
+
+                    <div class="ai-notice-icon">
+                        🤖
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            AI Analysis
+                        </h3>
+
+                        <p>
+                            After submission, AI will analyze
+                            the uploaded image to identify the
+                            waste type and estimate its severity.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Submit -->
+
+                <button
+                    type="submit"
+                    class="submit-report">
+                    🚀 Submit Waste Report
+                </button>
+
+            </form>
+
+        </div>
+
+    </main>
+
+   
+    <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const takePhotoButton =
+        document.getElementById("take-photo");
+
+    const cameraModal =
+        document.getElementById("camera-modal");
+
+    const cameraWarning =
+        document.getElementById("camera-warning");
+
+    const camera =
+        document.getElementById("camera");
+
+    const canvas =
+        document.getElementById("canvas");
+
+    const cameraSelect =
+        document.getElementById("camera-select");
+
+    const captureButton =
+        document.getElementById("capture-photo");
+
+    const closeCameraButton =
+        document.getElementById("close-camera");
+
+    const closeWarningButton =
+        document.getElementById("close-warning");
+
+    const warningMessage =
+        document.getElementById("warning-message");
+
+    const imagePreview =
+        document.getElementById("image-preview");
+
+    const imageInput =
+        document.getElementById("waste-image");
+
+        const photoActions =
+    document.getElementById("photo-actions");
+
+const retakePhotoButton =
+    document.getElementById("retake-photo");
+
+const usePhotoButton =
+    document.getElementById("use-photo");
+
+    let cameraStream = null;
+
+
+    /* =========================
+       TAKE PHOTO
+    ========================= */
+
+    takePhotoButton.addEventListener("click", async function () {
+
+        if (
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia
+        ) {
+
+            showWarning(
+                "Your browser does not support camera access."
+            );
+
+            return;
+        }
+
+
+        try {
+
+            /* Ask for camera permission */
+
+            const stream =
+                await navigator.mediaDevices.getUserMedia({
+                    video: true
+                });
+
+
+            /* Stop temporary stream */
+
+            stream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+
+
+            /* Find cameras */
+
+            const devices =
+                await navigator.mediaDevices.enumerateDevices();
+
+
+            const cameras =
+                devices.filter(function (device) {
+                    return device.kind === "videoinput";
+                });
+
+
+            if (cameras.length === 0) {
+
+                showWarning(
+                    "This device does not have a compatible camera."
+                );
+
+                return;
+            }
+
+
+            /* Clear dropdown */
+
+            cameraSelect.innerHTML = "";
+
+
+            /* Add cameras */
+
+            cameras.forEach(function (device, index) {
+
+                const option =
+                    document.createElement("option");
+
+                option.value =
+                    device.deviceId;
+
+                option.textContent =
+                    device.label ||
+                    "Camera " + (index + 1);
+
+                cameraSelect.appendChild(option);
+
+            });
+
+
+            /* Open first camera */
+
+            await startCamera(cameras[0].deviceId);
+
+        }
+
+        catch (error) {
+
+            console.error(error);
+
+
+            if (error.name === "NotAllowedError") {
+
+                showWarning(
+                    "Camera permission was denied. Please allow camera access in Chrome."
+                );
+
+            }
+
+            else if (error.name === "NotFoundError") {
+
+                showWarning(
+                    "This device does not have a compatible camera."
+                );
+
+            }
+
+            else {
+
+                showWarning(
+                    "The camera could not be opened. Please check your camera connection."
+                );
+
+            }
+
+        }
+
+    });
+
+
+    /* =========================
+       START CAMERA
+    ========================= */
+
+    async function startCamera(deviceId) {
+
+        try {
+
+            stopCamera();
+
+
+            cameraStream =
+                await navigator.mediaDevices.getUserMedia({
+
+                    video: {
+                        deviceId: {
+                            exact: deviceId
+                        }
+                    }
+
+                });
+
+
+            camera.srcObject =
+                cameraStream;
+
+
+            cameraModal.style.display =
+                "flex";
+
+        }
+
+        catch (error) {
+
+            console.error(error);
+
+            showWarning(
+                "Unable to open the selected camera."
+            );
+
+        }
+
+    }
+
+
+    /* =========================
+       CHANGE CAMERA
+    ========================= */
+
+    cameraSelect.addEventListener("change", function () {
+
+        if (this.value) {
+
+            startCamera(this.value);
+
+        }
+
+    });
+
+
+    /* =========================
+       CAPTURE PHOTO
+    ========================= */
+
+    captureButton.addEventListener("click", function () {
+
+        if (!cameraStream) {
+            return;
+        }
+
+
+        canvas.width =
+            camera.videoWidth;
+
+        canvas.height =
+            camera.videoHeight;
+
+
+        const context =
+            canvas.getContext("2d");
+
+
+        context.drawImage(
+            camera,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+
+        imagePreview.src =
+            canvas.toDataURL("image/jpeg", 0.9);
+            canvas.toBlob(function (blob) {
+
+    const file = new File(
+        [blob],
+        "captured-waste.jpg",
+        { type: "image/jpeg" }
+    );
+
+    const dataTransfer = new DataTransfer();
+
+    dataTransfer.items.add(file);
+
+    imageInput.files = dataTransfer.files;
+
+});
+
+
+        imagePreview.style.display =
+            "block";
+        
+            photoActions.style.display =
+    "flex";
+
+        closeCamera();
+
+    });
+
+
+    /* =========================
+       CLOSE CAMERA
+    ========================= */
+
+    closeCameraButton.addEventListener("click", function () {
+
+        closeCamera();
+
+    });
+
+
+    function closeCamera() {
+
+        stopCamera();
+
+        camera.srcObject = null;
+
+        cameraModal.style.display =
+            "none";
+
+    }
+
+
+    /* =========================
+       STOP CAMERA
+    ========================= */
+
+    function stopCamera() {
+
+        if (cameraStream) {
+
+            cameraStream.getTracks().forEach(function (track) {
+
+                track.stop();
+
+            });
+
+            cameraStream = null;
+
+        }
+
+    }
+
+
+    /* =========================
+       WARNING
+    ========================= */
+
+    function showWarning(message) {
+
+        warningMessage.textContent =
+            message;
+
+        cameraWarning.style.display =
+            "flex";
+
+    }
+
+
+    closeWarningButton.addEventListener("click", function () {
+
+        cameraWarning.style.display =
+            "none";
+
+    });
+
+
+    /* =========================
+       UPLOAD IMAGE PREVIEW
+    ========================= */
+
+    imageInput.addEventListener("change", function () {
+
+        const file =
+            this.files[0];
+
+        if (file) {
+
+            imagePreview.src =
+                URL.createObjectURL(file);
+
+            imagePreview.style.display =
+                "block";
+
+        }
+
+    });
+    /* =========================
+       LOCATION DETECTION
+    ========================= */
+
+    const detectLocationButton =
+        document.getElementById("detect-location");
+
+    const locationInput =
+        document.getElementById("location");
+
+
+    detectLocationButton.addEventListener(
+        "click",
+        function () {
+
+            if (!navigator.geolocation) {
+
+                locationInput.value =
+                    "Location is not supported by this browser.";
+
+                return;
+
+            }
+
+
+            detectLocationButton.textContent =
+                "📍 Detecting...";
+
+            detectLocationButton.disabled =
+                true;
+
+
+            navigator.geolocation.getCurrentPosition(
+
+                function (position) {
+
+                   const latitude =
+    position.coords.latitude;
+
+const longitude =
+    position.coords.longitude;
+
+document.getElementById("latitude").value = latitude;
+document.getElementById("longitude").value = longitude;
+
+
+                    locationInput.value = "📍 Finding address...";
+
+fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1`
+)
+.then(response => response.json())
+.then(data => {
+
+    if (data.display_name) {
+
+    locationInput.value =
+        data.display_name;
+
+    document.getElementById("address").value =
+        data.display_name;
+
+}
+     else {
+
+        locationInput.value =
+            `Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}`;
+
+    }
+
+    detectLocationButton.textContent =
+        "✓ Location Detected";
+
+    detectLocationButton.disabled =
+        false;
+
+})
+.catch(error => {
+
+    console.error(
+        "Address lookup error:",
+        error
+    );
+
+    locationInput.value =
+        `Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}`;
+
+    detectLocationButton.textContent =
+        "✓ Location Detected";
+
+    detectLocationButton.disabled =
+        false;
+
+});
+
+                    detectLocationButton.disabled =
+                        false;
+
+                },
+
+
+                function (error) {
+
+                    console.error(
+                        "Location error:",
+                        error
+                    );
+
+
+                    if (error.code === 1) {
+
+                        locationInput.value =
+                            "Location permission denied.";
+
+                    }
+
+                    else if (error.code === 2) {
+
+                        locationInput.value =
+                            "Unable to determine location.";
+
+                    }
+
+                    else if (error.code === 3) {
+
+                        locationInput.value =
+                            "Location request timed out.";
+
+                    }
+
+
+                    detectLocationButton.textContent =
+                        "📍 Try Again";
+
+                    detectLocationButton.disabled =
+                        false;
+
+                },
+
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+
+            );
+
+        }
+    );
+    
+       /* =========================
+       SELECT LOCATION ON MAP
+    ========================= */
+
+    const selectMapButton =
+        document.getElementById("select-map");
+
+    const mapModal =
+        document.getElementById("map-modal");
+
+    const closeMapButton =
+        document.getElementById("close-map");
+
+    const confirmMapButton =
+        document.getElementById("confirm-map");
+
+
+    let wasteMap = null;
+
+    let mapMarker = null;
+
+    let selectedLatitude = null;
+
+    let selectedLongitude = null;
+
+
+    /* Open map */
+
+    selectMapButton.addEventListener(
+        "click",
+        function () {
+
+            mapModal.style.display = "flex";
+
+
+            /* Create map only once */
+
+            if (!wasteMap) {
+
+                wasteMap = L.map("waste-map")
+                    .setView(
+                        [17.6868, 83.2185],
+                        13
+                    );
+
+
+                L.tileLayer(
+                    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                    {
+                        attribution:
+                            '&copy; OpenStreetMap contributors'
+                    }
+                ).addTo(wasteMap);
+
+
+                /* Click map */
+
+                wasteMap.on(
+                    "click",
+                    function (event) {
+
+                        selectedLatitude =
+                            event.latlng.lat;
+
+                        selectedLongitude =
+                            event.latlng.lng;
+
+
+                        /* Remove old marker */
+
+                        if (mapMarker) {
+
+                            wasteMap.removeLayer(
+                                mapMarker
+                            );
+
+                        }
+
+
+                        /* Add new marker */
+
+                        mapMarker =
+                            L.marker([
+                                selectedLatitude,
+                                selectedLongitude
+                            ]).addTo(wasteMap);
+
+
+                        mapMarker
+                            .bindPopup(
+                                "📍 Selected Waste Location"
+                            )
+                            .openPopup();
+
+                    }
+                );
+
+            }
+
+
+            /* Fix map display */
+
+            setTimeout(function () {
+
+                wasteMap.invalidateSize();
+
+            }, 100);
+
+        }
+    );
+
+
+    /* Confirm location */
+
+    confirmMapButton.addEventListener(
+        "click",
+        function () {
+
+            if (
+                selectedLatitude === null ||
+                selectedLongitude === null
+            ) {
+
+                alert(
+                    "Please click on the map to select the waste location."
+                );
+
+                return;
+
+            }
+
+
+           document.getElementById("latitude").value = selectedLatitude;
+document.getElementById("longitude").value = selectedLongitude;
+
+locationInput.value =
+    `Latitude: ${selectedLatitude.toFixed(6)}, Longitude: ${selectedLongitude.toFixed(6)}`;
+    document.getElementById("address").value = locationInput.value;
+            mapModal.style.display =  "none";
+
+        }
+    );
+
+
+    /* Close map */
+
+    closeMapButton.addEventListener(
+        "click",
+        function () {
+
+            mapModal.style.display =
+                "none";
+
+        }
+    ); 
+    /* =========================
+   RETAKE PHOTO
+========================= */
+
+retakePhotoButton.addEventListener(
+    "click",
+    function () {
+
+        photoActions.style.display =
+            "none";
+
+        imagePreview.style.display =
+            "none";
+
+        /*
+        Open camera again
+        */
+
+        takePhotoButton.click();
+
+    }
+);
+
+
+/* =========================
+   USE PHOTO
+========================= */
+
+usePhotoButton.addEventListener(
+    "click",
+    function () {
+
+        photoActions.style.display =
+            "none";
+
+    }
+);
+});
+</script>
+
+</body>
+
+</html>
