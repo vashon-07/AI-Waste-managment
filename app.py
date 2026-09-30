@@ -4,8 +4,44 @@ import os
 
 app = Flask(__name__)
 
-UPLOAD_FOLDER = "uploads"
+# In serverless environments like Vercel, only /tmp is writable
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+
+if IS_VERCEL:
+    UPLOAD_FOLDER = "/tmp/uploads"
+    DB_PATH = "/tmp/wastewatch.db"
+else:
+    UPLOAD_FOLDER = "uploads"
+    DB_PATH = "wastewatch.db"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+
+def init_db():
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image_path TEXT,
+            description TEXT,
+            latitude REAL,
+            longitude REAL,
+            address TEXT,
+            waste_type TEXT,
+            severity TEXT,
+            priority_score REAL,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    connection.commit()
+    connection.close()
+
+
+# Ensure DB schema is initialized
+init_db()
 
 
 @app.route("/")
@@ -20,9 +56,7 @@ def report():
 
 @app.route("/submit-report", methods=["POST"])
 def submit_report():
-
     image = request.files.get("image")
-
     image_path = None
 
     if image and image.filename:
@@ -30,7 +64,6 @@ def submit_report():
             app.config["UPLOAD_FOLDER"],
             image.filename
         )
-
         image.save(image_path)
 
     description = request.form.get("description")
@@ -38,7 +71,7 @@ def submit_report():
     latitude = request.form.get("latitude")
     longitude = request.form.get("longitude")
 
-    connection = sqlite3.connect("wastewatch.db")
+    connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
 
     cursor.execute("""
@@ -61,4 +94,4 @@ def submit_report():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True)
