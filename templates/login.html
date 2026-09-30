@@ -37,7 +37,7 @@
             </div>
 
             {% if message %}
-            <div class="login-alert">
+            <div class="login-alert {% if is_error %}error{% endif %}">
                 {{ message }}
             </div>
             {% endif %}
@@ -57,7 +57,7 @@
                 </div>
 
                 <div class="input-group">
-                    <label for="login-email">Email or Mobile</label>
+                    <label for="login-email">Email or 10-Digit Mobile</label>
                     <input type="text" id="login-email" name="email" placeholder="name@example.com or 10-digit mobile" required>
                 </div>
 
@@ -99,15 +99,41 @@
 
                 <div class="input-group">
                     <label for="reg-phone">Mobile Number</label>
-                    <input type="tel" id="reg-phone" name="phone" placeholder="10-digit mobile number" required>
+                    <input 
+                        type="tel" 
+                        id="reg-phone" 
+                        name="phone" 
+                        placeholder="10-digit number (e.g. 9876543210)" 
+                        pattern="[0-9]{10}" 
+                        maxlength="10" 
+                        inputmode="numeric" 
+                        required
+                    >
+                    <div class="input-hint" id="phone-hint">Must be exactly 10 digits (0-9).</div>
                 </div>
 
                 <div class="input-group">
                     <label for="reg-password">Create Password</label>
-                    <input type="password" id="reg-password" name="password" placeholder="At least 6 characters" required>
+                    <input type="password" id="reg-password" name="password" placeholder="Create a strong password" required>
                 </div>
 
-                <button type="submit" class="login-btn">Create Account</button>
+                <!-- Live Password Requirements Checklist -->
+                <div class="password-requirements" id="password-reqs">
+                    <p>Password must contain:</p>
+                    <div class="req-item invalid" id="req-length">⚪ At least 8 characters</div>
+                    <div class="req-item invalid" id="req-upper">⚪ At least 1 uppercase letter (A-Z)</div>
+                    <div class="req-item invalid" id="req-lower">⚪ At least 1 lowercase letter (a-z)</div>
+                    <div class="req-item invalid" id="req-number">⚪ At least 1 digit (0-9)</div>
+                    <div class="req-item invalid" id="req-special">⚪ At least 1 special character (!@#$%^&*...)</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-confirm-password">Confirm Password</label>
+                    <input type="password" id="reg-confirm-password" name="confirm_password" placeholder="Re-enter your password" required>
+                    <div class="input-hint" id="confirm-hint"></div>
+                </div>
+
+                <button type="submit" class="login-btn" id="btn-create-account">Create Account</button>
 
                 <div class="login-footer">
                     <p>Already have an account? <a href="javascript:void(0)" id="switch-to-login">Sign In</a></p>
@@ -151,6 +177,117 @@
         tabRegister.addEventListener("click", showRegister);
         switchToRegister.addEventListener("click", showRegister);
         switchToLogin.addEventListener("click", showLogin);
+
+        // --- CONSTRAINTS VALIDATION ---
+        const phoneInput = document.getElementById("reg-phone");
+        const phoneHint = document.getElementById("phone-hint");
+        const passwordInput = document.getElementById("reg-password");
+        const confirmInput = document.getElementById("reg-confirm-password");
+        const confirmHint = document.getElementById("confirm-hint");
+
+        const reqLength = document.getElementById("req-length");
+        const reqUpper = document.getElementById("req-upper");
+        const reqLower = document.getElementById("req-lower");
+        const reqNumber = document.getElementById("req-number");
+        const reqSpecial = document.getElementById("req-special");
+
+        // Force only digits in mobile number
+        phoneInput.addEventListener("input", function() {
+            this.value = this.value.replace(/[^0-9]/g, "");
+            if (this.value.length === 10) {
+                phoneHint.textContent = "✓ Valid 10-digit mobile number";
+                phoneHint.className = "input-hint success";
+            } else if (this.value.length > 0) {
+                phoneHint.textContent = `Entered ${this.value.length}/10 digits`;
+                phoneHint.className = "input-hint error";
+            } else {
+                phoneHint.textContent = "Must be exactly 10 digits (0-9).";
+                phoneHint.className = "input-hint";
+            }
+        });
+
+        // Live password criteria check
+        function checkPasswordCriteria(pwd) {
+            const hasLength = pwd.length >= 8;
+            const hasUpper = /[A-Z]/.test(pwd);
+            const hasLower = /[a-z]/.test(pwd);
+            const hasNumber = /[0-9]/.test(pwd);
+            const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd);
+
+            updateReq(reqLength, hasLength, "At least 8 characters");
+            updateReq(reqUpper, hasUpper, "At least 1 uppercase letter (A-Z)");
+            updateReq(reqLower, hasLower, "At least 1 lowercase letter (a-z)");
+            updateReq(reqNumber, hasNumber, "At least 1 digit (0-9)");
+            updateReq(reqSpecial, hasSpecial, "At least 1 special character (!@#$%^&*...)");
+
+            return hasLength && hasUpper && hasLower && hasNumber && hasSpecial;
+        }
+
+        function updateReq(el, isValid, text) {
+            if (isValid) {
+                el.className = "req-item valid";
+                el.textContent = "✓ " + text;
+            } else {
+                el.className = "req-item invalid";
+                el.textContent = "⚪ " + text;
+            }
+        }
+
+        passwordInput.addEventListener("input", function() {
+            checkPasswordCriteria(this.value);
+            checkConfirmPassword();
+        });
+
+        function checkConfirmPassword() {
+            const pwd = passwordInput.value;
+            const confirm = confirmInput.value;
+
+            if (!confirm) {
+                confirmHint.textContent = "";
+                confirmHint.className = "input-hint";
+                return false;
+            }
+
+            if (pwd === confirm) {
+                confirmHint.textContent = "✓ Passwords match";
+                confirmHint.className = "input-hint success";
+                return true;
+            } else {
+                confirmHint.textContent = "✕ Passwords do not match";
+                confirmHint.className = "input-hint error";
+                return false;
+            }
+        }
+
+        confirmInput.addEventListener("input", checkConfirmPassword);
+
+        // Form submission safety
+        formRegister.addEventListener("submit", function(e) {
+            const phone = phoneInput.value.trim();
+            const pwd = passwordInput.value;
+            const confirm = confirmInput.value;
+
+            if (!/^[0-9]{10}$/.test(phone)) {
+                e.preventDefault();
+                alert("Please enter a valid 10-digit mobile number containing only digits.");
+                phoneInput.focus();
+                return false;
+            }
+
+            if (!checkPasswordCriteria(pwd)) {
+                e.preventDefault();
+                alert("Password is too weak. Please meet all 5 password requirements (8+ chars, uppercase, lowercase, number, special character).");
+                passwordInput.focus();
+                return false;
+            }
+
+            if (pwd !== confirm) {
+                e.preventDefault();
+                alert("Passwords do not match. Please re-enter matching passwords.");
+                confirmInput.focus();
+                return false;
+            }
+        });
     </script>
 
 </body>
