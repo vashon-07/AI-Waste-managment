@@ -2,7 +2,13 @@ from flask import Flask, render_template, request
 import sqlite3
 import os
 
-app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BASE_DIR, "static"),
+    template_folder=os.path.join(BASE_DIR, "templates")
+)
 
 # In serverless environments like Vercel, only /tmp is writable
 IS_VERCEL = bool(os.environ.get("VERCEL"))
