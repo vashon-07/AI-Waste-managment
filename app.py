@@ -65,7 +65,16 @@ init_db()
 @app.route("/")
 @app.route("/api/index")
 def home():
+    if request.args.get("test"):
+        import json
+        return json.dumps({
+            "url": request.url,
+            "path": request.path,
+            "headers": dict(request.headers),
+            "environ": {k: str(v) for k, v in request.environ.items() if isinstance(v, (str, int))}
+        }, indent=2), 200, {"Content-Type": "application/json"}
     return render_template("index.html")
+
 
 
 
