@@ -70,11 +70,13 @@ def home():
 
 
 @app.route("/report")
+@app.route("/api/report")
 def report():
     return render_template("report.html")
 
 
 @app.route("/login", methods=["GET", "POST"])
+@app.route("/api/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         email = request.form.get("email", "")
@@ -82,6 +84,19 @@ def login():
         user_name = email.split("@")[0] if "@" in email else email
         return render_template("login.html", message=f"✓ Signed in successfully as {role.capitalize()} ({user_name})")
     return render_template("login.html")
+
+
+@app.route("/debug")
+def debug_route():
+    import json
+    return json.dumps({
+        "path": request.path,
+        "full_path": request.full_path,
+        "query_string": request.query_string.decode("utf-8", errors="ignore"),
+        "headers": dict(request.headers),
+        "matched_environ": {k: str(v) for k, v in request.environ.items() if any(w in k for w in ["PATH", "URI", "VERCEL", "MATCH", "NOW", "URL"])}
+    }, indent=2), 200, {"Content-Type": "application/json"}
+
 
 
 
