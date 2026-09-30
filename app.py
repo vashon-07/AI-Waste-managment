@@ -63,9 +63,9 @@ init_db()
 
 
 @app.route("/")
-@app.route("/api/index")
 def home():
     return render_template("index.html")
+
 
 
 
