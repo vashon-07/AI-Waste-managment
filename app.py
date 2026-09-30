@@ -75,8 +75,33 @@ def catch_all(path):
             action = request.form.get("action", "login")
             role = request.form.get("role", "Citizen")
             if action == "register":
-                name = request.form.get("name", "User")
-                return render_template("login.html", message=f"✓ Account created successfully! Welcome, {name} ({role.capitalize()}).")
+                import re
+                name = request.form.get("name", "User").strip()
+                phone = request.form.get("phone", "").strip()
+                password = request.form.get("password", "")
+                confirm_password = request.form.get("confirm_password", "")
+
+                if not phone.isdigit() or len(phone) != 10:
+                    return render_template("login.html", message="Mobile number must contain exactly 10 digits.", is_error=True)
+
+                if (
+                    len(password) < 8
+                    or not re.search(r"[A-Z]", password)
+                    or not re.search(r"[a-z]", password)
+                    or not re.search(r"[0-9]", password)
+                    or not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", password)
+                ):
+                    return render_template(
+                        "login.html",
+                        message="Password must be at least 8 characters and include uppercase, lowercase, number, and special character.",
+                        is_error=True
+                    )
+
+                if password != confirm_password:
+                    return render_template("login.html", message="Passwords do not match. Please try again.", is_error=True)
+
+                return render_template("login.html", message=f"✓ Account created successfully! Welcome, {name} ({role.capitalize()}).", is_error=False)
+
             else:
                 email = request.form.get("email", "")
                 user_name = email.split("@")[0] if "@" in email else email
