@@ -70,13 +70,19 @@ def catch_all(path):
 
     if target in ("report", "api/report"):
         return render_template("report.html")
-    elif target in ("login", "api/login"):
+    elif target in ("login", "api/login", "register", "api/register"):
         if request.method == "POST":
-            email = request.form.get("email", "")
+            action = request.form.get("action", "login")
             role = request.form.get("role", "Citizen")
-            user_name = email.split("@")[0] if "@" in email else email
-            return render_template("login.html", message=f"✓ Signed in successfully as {role.capitalize()} ({user_name})")
+            if action == "register":
+                name = request.form.get("name", "User")
+                return render_template("login.html", message=f"✓ Account created successfully! Welcome, {name} ({role.capitalize()}).")
+            else:
+                email = request.form.get("email", "")
+                user_name = email.split("@")[0] if "@" in email else email
+                return render_template("login.html", message=f"✓ Signed in successfully as {role.capitalize()} ({user_name})")
         return render_template("login.html")
+
     elif target in ("submit-report", "api/submit-report") and request.method == "POST":
         return submit_report()
     elif target.startswith("static/"):
