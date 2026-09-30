@@ -74,6 +74,17 @@ def report():
     return render_template("report.html")
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email", "")
+        role = request.form.get("role", "Citizen")
+        user_name = email.split("@")[0] if "@" in email else email
+        return render_template("login.html", message=f"✓ Signed in successfully as {role.capitalize()} ({user_name})")
+    return render_template("login.html")
+
+
+
 @app.route("/submit-report", methods=["POST"])
 def submit_report():
     image = request.files.get("image")
