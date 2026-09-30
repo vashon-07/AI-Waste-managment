@@ -11,3 +11,6 @@ uploads/
 ai/predictions/
 .vercel/
 node_modules/
+
+.vercel
+.env*
