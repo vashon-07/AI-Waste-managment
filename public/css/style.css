@@ -996,4 +996,61 @@ textarea:focus {
     font-weight: 500;
     margin-bottom: 20px;
     text-align: center;
-}
+}
+
+.login-alert.error {
+    background: #fdeeee;
+    color: #c92a2a;
+    border: 1px solid #f8d7da;
+}
+
+.password-requirements {
+    background: #f4f8f5;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    color: #556357;
+    margin-top: -6px;
+    margin-bottom: 6px;
+    border: 1px solid #e1ebe3;
+}
+
+.password-requirements p {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #26352a;
+}
+
+.req-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+    transition: color 0.2s;
+}
+
+.req-item.valid {
+    color: #2e8b57;
+    font-weight: 600;
+}
+
+.req-item.invalid {
+    color: #88938a;
+}
+
+.input-hint {
+    font-size: 12px;
+    color: #77837a;
+    margin-top: 4px;
+}
+
+.input-hint.error {
+    color: #d93838;
+    font-weight: 600;
+}
+
+.input-hint.success {
+    color: #2e8b57;
+    font-weight: 600;
+}
+
