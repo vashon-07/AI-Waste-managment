@@ -62,24 +62,30 @@ def init_db():
 init_db()
 
 
-@app.route("/")
-def home():
+@app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
+@app.route("/<path:path>", methods=["GET", "POST"])
+def catch_all(path):
+    target = request.args.get("__path") or path or ""
+    target = target.strip("/").lower()
+
+    if target in ("report", "api/report"):
+        return render_template("report.html")
+    elif target in ("login", "api/login"):
+        if request.method == "POST":
+            email = request.form.get("email", "")
+            role = request.form.get("role", "Citizen")
+            user_name = email.split("@")[0] if "@" in email else email
+            return render_template("login.html", message=f"✓ Signed in successfully as {role.capitalize()} ({user_name})")
+        return render_template("login.html")
+    elif target in ("submit-report", "api/submit-report") and request.method == "POST":
+        return submit_report()
+    elif target.startswith("static/"):
+        return serve_static(target[7:])
+    elif target.startswith("css/"):
+        return serve_css(target[4:])
+
     return render_template("index.html")
 
-
-@app.route("/report")
-def report():
-    return render_template("report.html")
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        email = request.form.get("email", "")
-        role = request.form.get("role", "Citizen")
-        user_name = email.split("@")[0] if "@" in email else email
-        return render_template("login.html", message=f"✓ Signed in successfully as {role.capitalize()} ({user_name})")
-    return render_template("login.html")
 
 
 
