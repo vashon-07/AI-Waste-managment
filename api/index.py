@@ -15,9 +15,18 @@ class VercelPathMiddleware:
     def __call__(self, environ, start_response):
         query = environ.get("QUERY_STRING", "")
         params = parse_qs(query)
-        if "__path" in params:
-            raw_path = params["__path"][0]
-            environ["PATH_INFO"] = "/" + raw_path.lstrip("/")
+        if "__path" in params and params["__path"][0]:
+            environ["PATH_INFO"] = "/" + params["__path"][0].lstrip("/")
+        elif environ.get("HTTP_X_MATCHED_PATH"):
+            environ["PATH_INFO"] = environ["HTTP_X_MATCHED_PATH"]
+        elif environ.get("HTTP_X_NOW_ROUTE_MATCHES"):
+            # x-now-route-matches e.g. "1=report"
+            m = parse_qs(environ["HTTP_X_NOW_ROUTE_MATCHES"])
+            if "1" in m and m["1"][0]:
+                environ["PATH_INFO"] = "/" + m["1"][0].lstrip("/")
+        elif environ.get("HTTP_X_VERCEL_PATH"):
+            environ["PATH_INFO"] = environ["HTTP_X_VERCEL_PATH"]
+
         return self.wsgi_app(environ, start_response)
 
 app.wsgi_app = VercelPathMiddleware(app.wsgi_app)
