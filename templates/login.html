@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Login - AI WasteWatch</title>
+    <title>Account - AI WasteWatch</title>
 
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -17,7 +17,7 @@
         <nav>
             <a href="/">Home</a>
             <a href="/report">Report Waste</a>
-            <a href="/login" class="active login-nav-btn">Login</a>
+            <a href="/login" class="active login-nav-btn">Account</a>
         </nav>
     </header>
 
@@ -27,8 +27,14 @@
 
             <div class="login-icon">🔐</div>
 
-            <h1>Welcome to <span>AI WasteWatch</span></h1>
-            <p class="login-subtitle">Sign in to manage reports and track cleanup priorities</p>
+            <h1 id="auth-title">Welcome to <span>AI WasteWatch</span></h1>
+            <p class="login-subtitle" id="auth-subtitle">Sign in or create an account to track cleanup reports</p>
+
+            <!-- Authentication Tabs -->
+            <div class="auth-tabs">
+                <button type="button" class="auth-tab active" id="tab-login">Sign In</button>
+                <button type="button" class="auth-tab" id="tab-register">Create Account</button>
+            </div>
 
             {% if message %}
             <div class="login-alert">
@@ -36,38 +42,116 @@
             </div>
             {% endif %}
 
-            <form class="login-form" action="/login" method="POST">
+            <!-- LOGIN FORM -->
+            <form class="login-form" id="form-login" action="/login" method="POST">
+                <input type="hidden" name="action" value="login">
 
                 <div class="input-group">
-                    <label for="role">Account Type</label>
-                    <select id="role" name="role" required>
+                    <label for="login-role">Account Type</label>
+                    <select id="login-role" name="role" required>
                         <option value="citizen">Citizen Reporter</option>
                         <option value="officer">Municipal Officer</option>
+                        <option value="volunteer">Green Volunteer</option>
                         <option value="admin">Administrator</option>
                     </select>
                 </div>
 
                 <div class="input-group">
-                    <label for="email">Email or Mobile</label>
-                    <input type="text" id="email" name="email" placeholder="name@example.com or 10-digit number" required>
+                    <label for="login-email">Email or Mobile</label>
+                    <input type="text" id="login-email" name="email" placeholder="name@example.com or 10-digit mobile" required>
                 </div>
 
                 <div class="input-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="••••••••" required>
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" placeholder="••••••••" required>
                 </div>
 
                 <button type="submit" class="login-btn">Sign In</button>
 
+                <div class="login-footer">
+                    <p>Don't have an account? <a href="javascript:void(0)" id="switch-to-register">Create an Account</a></p>
+                    <p style="margin-top: 8px;"><a href="/report">Report as Guest</a> • <a href="/">Back to Home</a></p>
+                </div>
             </form>
 
-            <div class="login-footer">
-                <p>Don't have an account? <a href="/report">Report as Guest</a> or <a href="/">Back to Home</a></p>
-            </div>
+            <!-- REGISTER FORM -->
+            <form class="login-form" id="form-register" action="/login" method="POST" style="display: none;">
+                <input type="hidden" name="action" value="register">
+
+                <div class="input-group">
+                    <label for="reg-name">Full Name</label>
+                    <input type="text" id="reg-name" name="name" placeholder="Enter your full name" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-role">Account Type</label>
+                    <select id="reg-role" name="role" required>
+                        <option value="citizen">Citizen Reporter</option>
+                        <option value="volunteer">Green Volunteer / NGO</option>
+                        <option value="officer">Municipal Officer</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-email">Email Address</label>
+                    <input type="email" id="reg-email" name="email" placeholder="name@example.com" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-phone">Mobile Number</label>
+                    <input type="tel" id="reg-phone" name="phone" placeholder="10-digit mobile number" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-password">Create Password</label>
+                    <input type="password" id="reg-password" name="password" placeholder="At least 6 characters" required>
+                </div>
+
+                <button type="submit" class="login-btn">Create Account</button>
+
+                <div class="login-footer">
+                    <p>Already have an account? <a href="javascript:void(0)" id="switch-to-login">Sign In</a></p>
+                    <p style="margin-top: 8px;"><a href="/report">Report as Guest</a> • <a href="/">Back to Home</a></p>
+                </div>
+            </form>
 
         </div>
 
     </main>
+
+    <script>
+        const tabLogin = document.getElementById("tab-login");
+        const tabRegister = document.getElementById("tab-register");
+        const formLogin = document.getElementById("form-login");
+        const formRegister = document.getElementById("form-register");
+        const authTitle = document.getElementById("auth-title");
+        const authSubtitle = document.getElementById("auth-subtitle");
+        const switchToRegister = document.getElementById("switch-to-register");
+        const switchToLogin = document.getElementById("switch-to-login");
+
+        function showLogin() {
+            tabLogin.classList.add("active");
+            tabRegister.classList.remove("active");
+            formLogin.style.display = "flex";
+            formRegister.style.display = "none";
+            authTitle.innerHTML = "Welcome to <span>AI WasteWatch</span>";
+            authSubtitle.textContent = "Sign in to manage reports and track cleanup priorities";
+        }
+
+        function showRegister() {
+            tabRegister.classList.add("active");
+            tabLogin.classList.remove("active");
+            formRegister.style.display = "flex";
+            formLogin.style.display = "none";
+            authTitle.innerHTML = "Join <span>AI WasteWatch</span>";
+            authSubtitle.textContent = "Create an account to report garbage and help clean your city";
+        }
+
+        tabLogin.addEventListener("click", showLogin);
+        tabRegister.addEventListener("click", showRegister);
+        switchToRegister.addEventListener("click", showRegister);
+        switchToLogin.addEventListener("click", showLogin);
+    </script>
 
 </body>
 </html>
