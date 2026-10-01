@@ -16,6 +16,7 @@ def create_database():
             longitude REAL,
             address TEXT,
             waste_type TEXT,
+            raw_label TEXT,
             severity TEXT,
             priority_score REAL,
             status TEXT DEFAULT 'Pending',
@@ -30,6 +31,10 @@ def create_database():
         pass
     try:
         cursor.execute("ALTER TABLE reports ADD COLUMN reporter_phone TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE reports ADD COLUMN raw_label TEXT")
     except Exception:
         pass
 

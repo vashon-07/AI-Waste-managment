@@ -59,6 +59,7 @@ def init_db():
             longitude REAL,
             address TEXT,
             waste_type TEXT,
+            raw_label TEXT,
             severity TEXT,
             priority_score REAL,
             status TEXT DEFAULT 'Pending',
@@ -73,6 +74,10 @@ def init_db():
         pass
     try:
         cursor.execute("ALTER TABLE reports ADD COLUMN reporter_phone TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE reports ADD COLUMN raw_label TEXT")
     except Exception:
         pass
 
@@ -323,6 +328,7 @@ def submit_report():
 
     # AI Classification using Hugging Face ViT model
     waste_type = None
+    raw_label = None
     severity = None
     priority_score = None
 
@@ -331,6 +337,7 @@ def submit_report():
             ai_res = predict_waste(image_bytes)
             if ai_res and ai_res.get("success"):
                 waste_type = ai_res.get("waste_type")
+                raw_label = ai_res.get("raw_label")
                 severity = ai_res.get("severity")
                 priority_score = ai_res.get("priority_score")
         except Exception:
@@ -344,8 +351,8 @@ def submit_report():
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO reports
-        (reporter_name, reporter_phone, image_path, description, address, latitude, longitude, waste_type, severity, priority_score, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (reporter_name, reporter_phone, image_path, description, address, latitude, longitude, waste_type, raw_label, severity, priority_score, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         reporter_name,
         reporter_phone,
@@ -355,6 +362,7 @@ def submit_report():
         lat,
         lng,
         waste_type,
+        raw_label,
         severity,
         priority_score,
         "Pending"
