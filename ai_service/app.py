@@ -16,7 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from PIL import UnidentifiedImageError
 
-from .classifier import classifier_instance
+try:
+    from .classifier import classifier_instance
+except ImportError:
+    from classifier import classifier_instance
 
 # 1. Configuration Constants & Environment Variables
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE_BYTES", 10 * 1024 * 1024))  # 10 MB limit
