@@ -110,7 +110,7 @@ class HuggingFaceWasteClassifier(BaseWasteClassifier):
                     model=self.model_name
                 )
                 self._is_ready = True
-                logger.info(f"[✓] Hugging Face model '{self.model_name}' is ready in memory.")
+                logger.info(f"[OK] Hugging Face model '{self.model_name}' is ready in memory.")
             except Exception as e:
                 logger.warning(f"[!] Background Hugging Face model loading note: {e}")
                 self._pipeline = None
