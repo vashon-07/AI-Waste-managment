@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, redirect, send_from_directory, url_for
+from flask import Flask, render_template, request, redirect, send_from_directory, url_for, jsonify
 import sqlite3
 import os
 import base64
 import re
+from ai.predict import predict_waste
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -240,11 +241,15 @@ def catch_all(path):
     elif target in ("update-status", "api/update-status") and request.method == "POST":
         return update_status()
 
-    # 7. Citizen Submit Report Action
+    # 7. Image Classification API
+    elif target in ("classify", "api/classify") and request.method == "POST":
+        return api_classify()
+
+    # 8. Citizen Submit Report Action
     elif target in ("submit-report", "api/submit-report") and request.method == "POST":
         return submit_report()
 
-    # 8. Static Fallbacks
+    # 9. Static Fallbacks
     elif target.startswith("static/"):
         return serve_static(target[7:])
     elif target.startswith("css/"):
@@ -252,6 +257,35 @@ def catch_all(path):
 
     # Default Home Page
     return render_template("index.html")
+
+
+@app.route("/api/classify", methods=["POST"])
+def api_classify():
+    """Real-time Waste Classification API using Hugging Face Vision Transformer."""
+    image_input = None
+
+    # Check for multipart file upload
+    if "image" in request.files and request.files["image"].filename:
+        image_file = request.files["image"]
+        image_input = image_file.read()
+
+    # Or check for JSON payload with base64 data
+    elif request.is_json:
+        data = request.get_json(silent=True) or {}
+        image_input = data.get("image")
+
+    # Or check for form data with base64 data URL
+    elif "image_data" in request.form:
+        image_input = request.form.get("image_data")
+
+    if not image_input:
+        return jsonify({"success": False, "error": "No valid image provided for classification."}), 400
+
+    try:
+        prediction = predict_waste(image_input)
+        return jsonify(prediction)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/submit-report", methods=["POST"])
@@ -271,6 +305,7 @@ def submit_report():
 
     image = request.files.get("image")
     image_path = None
+    image_bytes = None
 
     if image and image.filename:
         # Convert image to data URL so it displays permanently across serverless instances
@@ -286,8 +321,24 @@ def submit_report():
     if not image_path:
         image_path = "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80"
 
-    # AI Classification
-    waste_type, severity, priority_score = analyze_waste_ai(description, image.filename if image else "")
+    # AI Classification using Hugging Face ViT model
+    waste_type = None
+    severity = None
+    priority_score = None
+
+    if image_bytes:
+        try:
+            ai_res = predict_waste(image_bytes)
+            if ai_res and ai_res.get("success"):
+                waste_type = ai_res.get("waste_type")
+                severity = ai_res.get("severity")
+                priority_score = ai_res.get("priority_score")
+        except Exception:
+            pass
+
+    # Fallback to heuristic text/filename analysis if model was unavailable
+    if not waste_type or not severity or priority_score is None:
+        waste_type, severity, priority_score = analyze_waste_ai(description, image.filename if image else "")
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()

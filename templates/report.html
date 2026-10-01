@@ -120,11 +120,22 @@
       style="display: none;">
     </div>
 
-    <img
-    id="image-preview"
-    src=""
-    alt="Selected waste image"
-    style="display: none;">
+    <!-- Real-time AI Classification Preview Badge -->
+    <div id="ai-live-feedback" style="display: none; margin-top: 15px; padding: 14px 18px; border-radius: 12px; background: #f0fdf4; border: 1.5px solid #22c55e; color: #166534; font-size: 14px; text-align: left; box-shadow: 0 4px 12px rgba(34,197,94,0.1);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                🤖 Hugging Face AI Classification
+            </span>
+            <span id="ai-confidence-badge" style="background: #22c55e; color: #ffffff; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;">
+                Analyzing...
+            </span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 13px; color: #14532d;">
+            <div><strong>Waste Type:</strong> <span id="ai-detected-type">--</span></div>
+            <div><strong>Severity:</strong> <span id="ai-detected-severity">--</span></div>
+            <div><strong>Priority Score:</strong> <span id="ai-detected-score">--</span></div>
+        </div>
+    </div>
 
 </div>
 

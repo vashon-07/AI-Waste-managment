@@ -9,6 +9,11 @@ env/
 *.db
 uploads/
 ai/predictions/
+ai/models/*.pt
+ai/models/*.bin
+ai/models/*.safetensors
+.cache/
+hf_cache/
 .vercel/
 node_modules/
 
