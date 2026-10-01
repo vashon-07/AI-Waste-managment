@@ -116,6 +116,31 @@ def analyze_waste_ai(description, filename=""):
         return "Mixed Municipal Waste", "Medium", 68.0
 
 
+# Authorized Municipal Officer accounts (Restricted from citizen login)
+OFFICER_ACCOUNTS = {
+    "officer@municipality.gov.in": {
+        "password": "Officer@123",
+        "name": "Chief Officer Rajesh Sharma",
+        "ward": "Ward 1 - Central Zone"
+    },
+    "officer123": {
+        "password": "Officer@123",
+        "name": "Chief Officer Rajesh Sharma",
+        "ward": "Ward 1 - Central Zone"
+    },
+    "muni-7082": {
+        "password": "Officer@123",
+        "name": "Inspector Sunita Reddy",
+        "ward": "Ward 2 - North Zone"
+    },
+    "admin@wastewatch.gov.in": {
+        "password": "Officer@2026",
+        "name": "Commissioner K. Rao",
+        "ward": "All Wards (Central Command)"
+    }
+}
+
+
 @app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
 @app.route("/<path:path>", methods=["GET", "POST"])
 def catch_all(path):
@@ -166,14 +191,28 @@ def catch_all(path):
 
         return render_template("login.html")
 
-    # 3. Dedicated Municipal Officer Login
+    # 3. Dedicated Municipal Officer Login (Restricted to authorized Officer accounts)
     elif target in ("officer-login", "officer/login", "api/officer-login", "api/officer/login"):
         if request.method == "POST":
-            officer_id = request.form.get("officer_id", "Municipal Officer")
-            ward = request.form.get("ward", "All Wards")
-            # Successful officer sign-in -> redirect to Officer Dashboard
-            return redirect(f"/officer-dashboard?officer_name={officer_id}&ward={ward}")
+            officer_id = request.form.get("officer_id", "").strip().lower()
+            officer_password = request.form.get("officer_password", "").strip()
+            selected_ward = request.form.get("ward", "All Wards")
+
+            # Validate against official municipal staff accounts
+            if officer_id in OFFICER_ACCOUNTS and OFFICER_ACCOUNTS[officer_id]["password"] == officer_password:
+                account_info = OFFICER_ACCOUNTS[officer_id]
+                officer_name = account_info["name"]
+                assigned_ward = selected_ward if selected_ward != "All Wards" else account_info["ward"]
+                return redirect(f"/officer-dashboard?officer_name={officer_name}&ward={assigned_ward}")
+            else:
+                return render_template(
+                    "officer_login.html",
+                    message="❌ Access Denied: Invalid Officer ID or Security Key. Unauthorized citizen access is strictly prohibited.",
+                    is_error=True
+                )
+
         return render_template("officer_login.html")
+
 
     # 4. Municipal Officer Dashboard (View all photos, locations & names)
     elif target in ("officer-dashboard", "officer/dashboard", "api/officer-dashboard", "api/officer/dashboard"):

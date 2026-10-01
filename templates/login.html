@@ -52,9 +52,7 @@
                     <label for="login-role">Account Type</label>
                     <select id="login-role" name="role" required>
                         <option value="citizen">Citizen Reporter</option>
-                        <option value="officer">Municipal Officer</option>
-                        <option value="volunteer">Green Volunteer</option>
-                        <option value="admin">Administrator</option>
+                        <option value="volunteer">Green Volunteer / Community Reporter</option>
                     </select>
                 </div>
 
@@ -73,6 +71,9 @@
                 <div class="login-footer">
                     <p>Don't have an account? <a href="javascript:void(0)" id="switch-to-register">Create an Account</a></p>
                     <p style="margin-top: 8px;"><a href="/report">Report as Guest</a> • <a href="/">Back to Home</a></p>
+                    <p style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #dce8df; font-size: 13px;">
+                        🏛️ Are you a Municipal Staff member? <a href="/officer-login" style="font-weight: 700;">Officer Portal &rarr;</a>
+                    </p>
                 </div>
             </form>
 
@@ -89,10 +90,10 @@
                     <label for="reg-role">Account Type</label>
                     <select id="reg-role" name="role" required>
                         <option value="citizen">Citizen Reporter</option>
-                        <option value="volunteer">Green Volunteer / NGO</option>
-                        <option value="officer">Municipal Officer</option>
+                        <option value="volunteer">Green Volunteer / Community Reporter</option>
                     </select>
                 </div>
+
 
                 <div class="input-group">
                     <label for="reg-email">Email Address</label>
