@@ -69,7 +69,7 @@
             </div>
             {% endif %}
 
-            <form class="report-form" action="/submit-report" method="POST" enctype="multipart/form-data">
+            <form class="report-form" id="report-form" action="/submit-report" method="POST" enctype="multipart/form-data">
            <!-- Image -->
 
                 <div class="form-section">
@@ -401,6 +401,12 @@
                 <input type="hidden" id="browser_raw_label"    name="browser_raw_label">
                 <input type="hidden" id="browser_severity"     name="browser_severity">
                 <input type="hidden" id="browser_priority_score" name="browser_priority_score">
+
+                <!-- Hidden field: Cloudinary permanent image URL -->
+                <input type="hidden" id="cloudinary_image_url" name="cloudinary_image_url">
+
+                <!-- Cloudinary upload status (shown while uploading) -->
+                <div id="cloudinary-status" style="display:none; margin-top:10px; padding:10px 14px; border-radius:10px; font-size:13px; background:#eff6ff; border:1.5px solid #3b82f6; color:#1d4ed8;"></div>
 
 
                 <!-- Submit -->
@@ -1319,6 +1325,82 @@ usePhotoButton.addEventListener(
 
     }
 );
+    /* =========================
+       CLOUDINARY UPLOAD
+       Runs on form submit, before the POST reaches /submit-report.
+       Uses the UNSIGNED upload preset – no API secret in the browser.
+    ========================= */
+
+    const reportForm      = document.getElementById("report-form");
+    const cloudinaryField = document.getElementById("cloudinary_image_url");
+    const cloudinaryStatus = document.getElementById("cloudinary-status");
+    const submitBtn       = reportForm ? reportForm.querySelector("button[type='submit']") : null;
+
+    const CLOUDINARY_CLOUD  = "ulc3tp6k";
+    const CLOUDINARY_PRESET = "wastewatch_upload";
+    const CLOUDINARY_URL    = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
+
+    function showCloudinaryStatus(msg, color) {
+        if (!cloudinaryStatus) return;
+        cloudinaryStatus.textContent = msg;
+        cloudinaryStatus.style.background = color === "green"  ? "#f0fdf4" :
+                                            color === "yellow" ? "#fffbeb" : "#eff6ff";
+        cloudinaryStatus.style.borderColor = color === "green"  ? "#22c55e" :
+                                             color === "yellow" ? "#f59e0b" : "#3b82f6";
+        cloudinaryStatus.style.color       = color === "green"  ? "#166534" :
+                                             color === "yellow" ? "#92400e" : "#1d4ed8";
+        cloudinaryStatus.style.display     = "block";
+    }
+
+    if (reportForm) {
+        reportForm.addEventListener("submit", async function (e) {
+
+            const fileInput = document.getElementById("waste-image");
+            const file      = fileInput && fileInput.files && fileInput.files[0];
+
+            // If no file selected, skip Cloudinary and submit normally
+            if (!file) return;
+
+            // Prevent native submit; we will re-trigger it after upload
+            e.preventDefault();
+
+            if (submitBtn) {
+                submitBtn.disabled    = true;
+                submitBtn.textContent = "⏳ Uploading image...";
+            }
+            showCloudinaryStatus("☁️ Uploading image to cloud storage...", "blue");
+
+            try {
+                const fd = new FormData();
+                fd.append("file",           file);
+                fd.append("upload_preset",  CLOUDINARY_PRESET);
+
+                const res  = await fetch(CLOUDINARY_URL, { method: "POST", body: fd });
+                const data = await res.json();
+
+                if (res.ok && data.secure_url) {
+                    cloudinaryField.value = data.secure_url;
+                    showCloudinaryStatus("✅ Image uploaded successfully. Submitting report...", "green");
+                } else {
+                    // Upload responded but without a URL – treat as failure
+                    console.warn("Cloudinary upload response missing secure_url:", data);
+                    showCloudinaryStatus("⚠️ Cloud upload failed – submitting with local image.", "yellow");
+                }
+            } catch (err) {
+                // Network error or CORS problem
+                console.warn("Cloudinary upload error:", err);
+                showCloudinaryStatus("⚠️ Cloud upload unavailable – submitting with local image.", "yellow");
+            }
+
+            // Always continue submitting the form regardless of Cloudinary result
+            if (submitBtn) {
+                submitBtn.disabled    = true;
+                submitBtn.textContent = "🚀 Submitting...";
+            }
+            reportForm.submit();
+        });
+    }
+
 });
 </script>
 

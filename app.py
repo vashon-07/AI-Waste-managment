@@ -312,7 +312,17 @@ def submit_report():
     image_path = None
     image_bytes = None
 
-    if image and image.filename:
+    # --- Priority 0: Cloudinary URL uploaded by browser before form submit ---
+    cloudinary_url = request.form.get("cloudinary_image_url", "").strip()
+    if cloudinary_url and cloudinary_url.startswith("https://res.cloudinary.com/"):
+        image_path = cloudinary_url
+        # Still read image_bytes for AI fallback classification if needed
+        if image and image.filename:
+            try:
+                image_bytes = image.read()
+            except Exception:
+                pass
+    elif image and image.filename:
         # Convert image to data URL so it displays permanently across serverless instances
         try:
             image_bytes = image.read()
