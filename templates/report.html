@@ -59,8 +59,18 @@
 
             </div>
 
+            {% if success_message %}
+            <div style="background: #e8f5eb; color: #1e7042; padding: 18px 24px; border-radius: 14px; border: 1.5px solid #2e8b57; margin-bottom: 24px; font-weight: 600; font-size: 15px; text-align: center; box-shadow: 0 4px 15px rgba(46,139,87,0.12);">
+                {{ success_message }}
+                <div style="margin-top: 10px;">
+                    <a href="/officer-dashboard" style="color: #162a1e; font-size: 13px; text-decoration: underline; margin-right: 15px;">🏛️ View in Officer Portal</a>
+                    <a href="/report" style="color: #2e8b57; font-size: 13px; text-decoration: underline;">Submit Another Report</a>
+                </div>
+            </div>
+            {% endif %}
 
-<form class="report-form" action="/submit-report" method="POST" enctype="multipart/form-data">           <!-- Image -->
+            <form class="report-form" action="/submit-report" method="POST" enctype="multipart/form-data">
+           <!-- Image -->
 
                 <div class="form-section">
 
