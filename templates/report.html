@@ -698,6 +698,8 @@ const usePhotoButton =
 
     imageInput.files = dataTransfer.files;
 
+    // Trigger instant AI classification
+    triggerLiveClassification(file);
 });
 
 
@@ -780,7 +782,7 @@ const usePhotoButton =
 
 
     /* =========================
-       UPLOAD IMAGE PREVIEW
+       UPLOAD IMAGE PREVIEW & AI
     ========================= */
 
     imageInput.addEventListener("change", function () {
@@ -796,9 +798,61 @@ const usePhotoButton =
             imagePreview.style.display =
                 "block";
 
+            // Trigger instant AI classification
+            triggerLiveClassification(file);
         }
 
     });
+
+    async function triggerLiveClassification(fileOrBlob) {
+        const feedbackBox = document.getElementById("ai-live-feedback");
+        const confBadge = document.getElementById("ai-confidence-badge");
+        const detectedType = document.getElementById("ai-detected-type");
+        const detectedSev = document.getElementById("ai-detected-severity");
+        const detectedScore = document.getElementById("ai-detected-score");
+
+        if (!feedbackBox) return;
+
+        feedbackBox.style.display = "block";
+        confBadge.textContent = "Analyzing ViT Model...";
+        confBadge.style.background = "#eab308";
+        detectedType.textContent = "Scanning...";
+        detectedSev.textContent = "...";
+        detectedScore.textContent = "...";
+
+        try {
+            const formData = new FormData();
+            formData.append("image", fileOrBlob);
+
+            const res = await fetch("/api/classify", {
+                method: "POST",
+                body: formData
+            });
+
+            if (!res.ok) throw new Error("Classification request failed");
+            const data = await res.json();
+
+            if (data && data.success) {
+                const conf = data.confidence_percent || (data.confidence_score ? (data.confidence_score * 100).toFixed(1) : 85);
+                confBadge.textContent = `${conf}% Match`;
+                confBadge.style.background = "#22c55e";
+                detectedType.textContent = data.waste_type || data.raw_label || "Identified";
+                detectedSev.textContent = `${data.severity} Priority`;
+                detectedScore.textContent = `${data.priority_score}%`;
+            } else {
+                confBadge.textContent = "Analysis on Submit";
+                confBadge.style.background = "#6b7280";
+            }
+        } catch (err) {
+            console.warn("Live classification info:", err);
+            confBadge.textContent = "Analysis on Submit";
+            confBadge.style.background = "#6b7280";
+            detectedType.textContent = "Will be analyzed upon submission";
+            detectedSev.textContent = "Auto";
+            detectedScore.textContent = "Auto";
+        }
+    }
+
     /* =========================
        LOCATION DETECTION
     ========================= */
