@@ -11,12 +11,12 @@ import os
 import base64
 import logging
 from typing import Dict, Any, List, Union
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 logger = logging.getLogger("AIServiceClassifier")
 logging.basicConfig(level=logging.INFO)
 
-DEFAULT_HF_MODEL = "watersplash/waste-classification"
+DEFAULT_HF_MODEL = os.getenv("MODEL_NAME", "watersplash/waste-classification")
 
 # Normalization mapping for waste types
 CATEGORY_MAPPING = {
@@ -95,22 +95,31 @@ class ServiceWasteClassifier:
         return self._is_ready and self._pipeline is not None
 
     def _prepare_image(self, image_input: Union[str, bytes, Image.Image]) -> Image.Image:
+        """Decodes raw input into PIL RGB Image, raising UnidentifiedImageError on invalid data."""
         if isinstance(image_input, Image.Image):
             return image_input.convert("RGB")
 
         if isinstance(image_input, bytes):
+            img = Image.open(io.BytesIO(image_input))
+            img.verify()  # Verify integrity
             return Image.open(io.BytesIO(image_input)).convert("RGB")
 
         if isinstance(image_input, str):
             if image_input.startswith("data:image") or ";base64," in image_input:
                 b64_str = image_input.split(";base64,")[-1]
-                return Image.open(io.BytesIO(base64.b64decode(b64_str))).convert("RGB")
+                decoded = base64.b64decode(b64_str)
+                img = Image.open(io.BytesIO(decoded))
+                img.verify()
+                return Image.open(io.BytesIO(decoded)).convert("RGB")
             if os.path.exists(image_input):
                 return Image.open(image_input).convert("RGB")
             # Raw base64 string
-            return Image.open(io.BytesIO(base64.b64decode(image_input))).convert("RGB")
+            decoded = base64.b64decode(image_input)
+            img = Image.open(io.BytesIO(decoded))
+            img.verify()
+            return Image.open(io.BytesIO(decoded)).convert("RGB")
 
-        raise ValueError(f"Unsupported image type: {type(image_input)}")
+        raise ValueError(f"Unsupported image input type: {type(image_input)}")
 
     def _map_label(self, raw_label: str, raw_score: float) -> tuple:
         label_clean = raw_label.lower().strip().replace("_", " ").replace("-", " ")
