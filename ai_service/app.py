@@ -32,12 +32,26 @@ ALLOWED_MIME_TYPES = {
     "application/octet-stream"  # Used when clients don't set explicit image mime
 }
 
-# 2. CORS configuration from environment variable
-raw_origins = os.getenv(
-    "ALLOWED_ORIGINS",
-    "https://ai-waste-managment.vercel.app,http://localhost:5000,http://127.0.0.1:5000,http://localhost:3000,http://127.0.0.1:3000"
-)
-allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+# 2. CORS configuration (Production Vercel domain, local dev, and Vercel preview deployments)
+DEFAULT_ALLOWED_ORIGINS = [
+    "https://ai-waste-managment.vercel.app",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+env_origins = os.getenv("ALLOWED_ORIGINS", "")
+if env_origins:
+    extra_origins = [orig.strip() for orig in env_origins.split(",") if orig.strip()]
+    allowed_origins = list(set(DEFAULT_ALLOWED_ORIGINS + extra_origins))
+else:
+    allowed_origins = DEFAULT_ALLOWED_ORIGINS
+
+# Regex to safely match any Vercel preview / branch deployment (e.g. https://ai-waste-managment-git-main-xxx.vercel.app)
+VERCEL_PREVIEW_REGEX = r"^https://[a-zA-Z0-9_\-]+\.vercel\.app$"
 
 
 @asynccontextmanager
@@ -61,11 +75,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Middleware with restricted domains
+# CORS Middleware: Exact origins for production & local dev, regex for preview deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if "*" not in allowed_origins else ["*"],
-    allow_origin_regex=r"https://.*\.vercel\.app" if "*" not in allowed_origins else None,
+    allow_origins=allowed_origins,
+    allow_origin_regex=VERCEL_PREVIEW_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
