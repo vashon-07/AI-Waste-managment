@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Municipal Officer Portal - AI WasteWatch</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+    <header>
+        <a href="/" class="logo-link"><div class="logo">♻️ AI WasteWatch</div></a>
+
+        <nav>
+            <a href="/">Home</a>
+            <a href="/report">Report Waste</a>
+            <a href="/login">Citizen Login</a>
+            <a href="/officer-login" class="active login-nav-btn officer-btn">🏛️ Officer Portal</a>
+        </nav>
+    </header>
+
+    <main class="login-page officer-portal-bg">
+
+        <div class="login-card officer-card">
+
+            <div class="officer-badge">🏛️ MUNICIPAL ADMINISTRATION</div>
+
+            <h1>Officer <span>Command Portal</span></h1>
+            <p class="login-subtitle">Official access for Municipal Sanitation Officers, Ward Inspectors & Cleanliness Taskforce</p>
+
+            {% if message %}
+            <div class="login-alert {% if is_error %}error{% endif %}">
+                {{ message }}
+            </div>
+            {% endif %}
+
+            <form class="login-form" action="/officer-login" method="POST">
+
+                <div class="input-group">
+                    <label for="officer_id">Officer ID or Official Email</label>
+                    <input 
+                        type="text" 
+                        id="officer_id" 
+                        name="officer_id" 
+                        placeholder="e.g. OFC-7082 or officer@municipality.gov.in" 
+                        value="officer@municipality.gov.in" 
+                        required
+                    >
+                </div>
+
+                <div class="input-group">
+                    <label for="ward">Assigned Ward / Jurisdiction</label>
+                    <select id="ward" name="ward" required>
+                        <option value="All Wards">All Wards (Central Command)</option>
+                        <option value="Ward 1 - Central Zone">Ward 1 - Central Zone</option>
+                        <option value="Ward 2 - North Zone">Ward 2 - North Zone</option>
+                        <option value="Ward 3 - South Zone">Ward 3 - South Zone</option>
+                        <option value="Ward 4 - Coastal Zone">Ward 4 - Coastal Zone</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="officer_password">Security Key / Password</label>
+                    <input 
+                        type="password" 
+                        id="officer_password" 
+                        name="officer_password" 
+                        placeholder="••••••••" 
+                        value="Officer@123" 
+                        required
+                    >
+                </div>
+
+                <button type="submit" class="login-btn officer-login-btn">🔐 Access Officer Dashboard</button>
+
+                <div class="officer-demo-hint">
+                    <p>💡 <strong>Demo Credentials Ready:</strong> Simply click "Access Officer Dashboard" to test.</p>
+                </div>
+
+                <div class="login-footer">
+                    <p>Are you a citizen? <a href="/report">Submit a Waste Report</a> or <a href="/login">Citizen Login</a></p>
+                </div>
+
+            </form>
+
+        </div>
+
+    </main>
+
+</body>
+</html>

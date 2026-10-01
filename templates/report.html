@@ -24,9 +24,11 @@
         <nav>
             <a href="/">Home</a>
             <a href="/report" class="active">Report Waste</a>
-            <a href="/login" class="login-nav-btn">Login</a>
+            <a href="/login">Citizen Login</a>
+            <a href="/officer-login" class="login-nav-btn officer-btn">🏛️ Officer Portal</a>
         </nav>
     </header>
+
 
 
 
@@ -226,6 +228,37 @@
 </div>
 
 
+                <!-- Reporter Information -->
+                <div class="form-section">
+                    <label for="reporter_name">
+                        👤 Your Full Name
+                    </label>
+                    <input 
+                        type="text" 
+                        id="reporter_name" 
+                        name="reporter_name" 
+                        placeholder="Enter your name (e.g. Ramesh Kumar)" 
+                        style="width: 100%; padding: 14px 16px; border: 1px solid #dce5de; border-radius: 12px; font-size: 15px; outline: none; margin-bottom: 12px;"
+                        required
+                    >
+
+                    <label for="reporter_phone">
+                        📱 Your Mobile Number
+                    </label>
+                    <input 
+                        type="tel" 
+                        id="reporter_phone" 
+                        name="reporter_phone" 
+                        placeholder="10-digit number (for cleanup updates)" 
+                        pattern="[0-9]{10}" 
+                        maxlength="10" 
+                        inputmode="numeric" 
+                        style="width: 100%; padding: 14px 16px; border: 1px solid #dce5de; border-radius: 12px; font-size: 15px; outline: none;"
+                        required
+                    >
+                </div>
+
+
                 <!-- Description -->
 
                 <div class="form-section">
@@ -239,6 +272,7 @@
                     ></textarea>
 
                 </div>
+
 
 
                 <!-- Location -->

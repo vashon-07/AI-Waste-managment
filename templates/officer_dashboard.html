@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Municipal Officer Dashboard - AI WasteWatch</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+
+<body class="dashboard-body">
+
+    <!-- Top Officer Navigation Bar -->
+    <header class="dashboard-header">
+        <div class="logo">
+            <a href="/" class="logo-link">♻️ AI WasteWatch <span class="officer-portal-tag">Officer Portal</span></a>
+        </div>
+
+        <div class="officer-user-info">
+            <span class="officer-avatar">👮‍♂️</span>
+            <div class="officer-meta">
+                <strong>{{ officer_name }}</strong>
+                <small>{{ officer_ward }}</small>
+            </div>
+            <a href="/officer-logout" class="logout-btn">Sign Out 🚪</a>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+
+        <!-- Dashboard Header & Actions -->
+        <div class="dashboard-top-bar">
+            <div>
+                <h1>Waste Reports & <span>Field Inspection</span></h1>
+                <p>Real-time citizen submissions, AI classification, priority matrix, and GPS location tracking.</p>
+            </div>
+            <div class="top-action-buttons">
+                <a href="/report" class="btn-secondary" target="_blank">➕ New Citizen Report</a>
+                <button class="btn-primary" onclick="window.location.reload()">🔄 Refresh Feed</button>
+            </div>
+        </div>
+
+        <!-- Metric Cards -->
+        <section class="stats-grid">
+            <div class="stat-card total">
+                <div class="stat-icon">📋</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ reports|length }}</span>
+                    <span class="stat-label">Total Submissions</span>
+                </div>
+            </div>
+
+            <div class="stat-card pending">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ reports|selectattr('status', 'equalto', 'Pending')|list|length }}</span>
+                    <span class="stat-label">Pending Action</span>
+                </div>
+            </div>
+
+            <div class="stat-card progress">
+                <div class="stat-icon">🚧</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ reports|selectattr('status', 'equalto', 'In Progress')|list|length }}</span>
+                    <span class="stat-label">In Progress</span>
+                </div>
+            </div>
+
+            <div class="stat-card resolved">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ reports|selectattr('status', 'equalto', 'Resolved')|list|length }}</span>
+                    <span class="stat-label">Cleaned & Resolved</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Master Map Section -->
+        <section class="dashboard-map-section">
+            <div class="section-title-row">
+                <h2>🗺️ Municipal Waste Hotspot Map</h2>
+                <small>Showing all geolocation pins submitted by citizens</small>
+            </div>
+            <div id="officer-map" class="officer-map-view"></div>
+        </section>
+
+        <!-- Reports Feed & Filter Bar -->
+        <section class="reports-section">
+            
+            <div class="feed-controls">
+                <div class="search-box">
+                    <span>🔍</span>
+                    <input type="text" id="report-search" placeholder="Search by citizen name, phone, address, waste type...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="status-filter">Status:</label>
+                    <select id="status-filter">
+                        <option value="all">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                    </select>
+
+                    <label for="severity-filter">Priority:</label>
+                    <select id="severity-filter">
+                        <option value="all">All Priorities</option>
+                        <option value="Critical">Critical</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Reports Grid -->
+            {% if reports %}
+            <div class="reports-grid" id="reports-grid">
+                {% for r in reports %}
+                <div class="report-card status-{{ r.status|lower|replace(' ', '-') }}" 
+                     data-name="{{ r.reporter_name or 'Citizen' }}" 
+                     data-phone="{{ r.reporter_phone or '' }}"
+                     data-address="{{ r.address or '' }}"
+                     data-status="{{ r.status }}" 
+                     data-severity="{{ r.severity }}"
+                     data-type="{{ r.waste_type }}"
+                >
+                    <!-- Image Box -->
+                    <div class="card-image-box">
+                        {% if r.image_path %}
+                        <img src="{{ r.image_path }}" alt="Reported Waste" class="waste-photo-thumb" onclick="openPhotoModal(this.src, '{{ r.reporter_name or 'Citizen' }}', '{{ r.address or '' }}')">
+                        <div class="zoom-badge">🔍 Click to View Full Photo</div>
+                        {% else %}
+                        <div class="no-photo-placeholder">
+                            <span>📷</span>
+                            <small>No image attached</small>
+                        </div>
+                        {% endif %}
+
+                        <!-- Severity / Priority Badge -->
+                        <div class="badge-priority priority-{{ r.severity|lower }}">
+                            {{ r.severity }} Priority ({{ r.priority_score }}%)
+                        </div>
+                    </div>
+
+                    <!-- Card Body -->
+                    <div class="card-content">
+
+                        <div class="card-header-row">
+                            <span class="report-id">#WW-{{ r.id }}</span>
+                            <span class="badge-status status-badge-{{ r.status|lower|replace(' ', '-') }}">{{ r.status }}</span>
+                        </div>
+
+                        <!-- Citizen Info Section (User Name & Contact) -->
+                        <div class="citizen-info-block">
+                            <div class="citizen-name">
+                                <strong>👤 Reported by:</strong> <span>{{ r.reporter_name or 'Anonymous Citizen' }}</span>
+                            </div>
+                            {% if r.reporter_phone %}
+                            <div class="citizen-phone">
+                                <strong>📱 Contact:</strong> <a href="tel:{{ r.reporter_phone }}">{{ r.reporter_phone }}</a>
+                            </div>
+                            {% endif %}
+                            <div class="report-time">
+                                <strong>📅 Time:</strong> {{ r.created_at }}
+                            </div>
+                        </div>
+
+                        <!-- Waste Classification -->
+                        <div class="waste-type-tag">
+                            🏷️ <strong>Type:</strong> {{ r.waste_type or 'General Waste' }}
+                        </div>
+
+                        <!-- Description -->
+                        <p class="waste-desc">
+                            "{{ r.description or 'No extra description provided by citizen.' }}"
+                        </p>
+
+                        <!-- Location & Map Link -->
+                        <div class="location-details-box">
+                            <div class="loc-address">
+                                <strong>📍 Location:</strong> {{ r.address or 'Address not detected' }}
+                            </div>
+                            {% if r.latitude and r.longitude %}
+                            <div class="loc-coords">
+                                <span>🌐 {{ "%.5f"|format(r.latitude) }}, {{ "%.5f"|format(r.longitude) }}</span>
+                                <a href="https://www.google.com/maps/search/?api=1&query={{ r.latitude }},{{ r.longitude }}" target="_blank" class="gmaps-link">
+                                    🗺️ Directions
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Status Action Controls for Officer -->
+                        <div class="officer-actions">
+                            <label>Update Action Status:</label>
+                            <form action="/update-status" method="POST" class="status-update-form">
+                                <input type="hidden" name="report_id" value="{{ r.id }}">
+                                <select name="new_status" onchange="this.form.submit()" class="status-select">
+                                    <option value="Pending" {% if r.status == 'Pending' %}selected{% endif %}>⏳ Pending Inspection</option>
+                                    <option value="In Progress" {% if r.status == 'In Progress' %}selected{% endif %}>🚧 Crew Dispatched (In Progress)</option>
+                                    <option value="Resolved" {% if r.status == 'Resolved' %}selected{% endif %}>✅ Cleaned & Resolved</option>
+                                </select>
+                            </form>
+                        </div>
+
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">🎉</div>
+                <h3>No Waste Reports Logged Yet</h3>
+                <p>When citizens report waste from their phones, they will instantly show up here with their photo, name, and GPS coordinates.</p>
+                <a href="/report" class="btn-primary" style="margin-top: 15px; display: inline-block;">Submit a Test Report</a>
+            </div>
+            {% endif %}
+
+        </section>
+
+    </main>
+
+    <!-- Photo Zoom Modal -->
+    <div id="photo-lightbox-modal" class="lightbox-modal" onclick="closePhotoModal(event)">
+        <div class="lightbox-content">
+            <button class="lightbox-close" onclick="closePhotoModal()">&times;</button>
+            <img id="lightbox-img" src="" alt="Waste Photo Full Size">
+            <div class="lightbox-caption">
+                <h4 id="lightbox-reporter"></h4>
+                <p id="lightbox-address"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS for Officer Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // --- Photo Lightbox Modal ---
+        const lightboxModal = document.getElementById("photo-lightbox-modal");
+        const lightboxImg = document.getElementById("lightbox-img");
+        const lightboxReporter = document.getElementById("lightbox-reporter");
+        const lightboxAddress = document.getElementById("lightbox-address");
+
+        function openPhotoModal(src, name, address) {
+            lightboxImg.src = src;
+            lightboxReporter.textContent = "Reported by: " + name;
+            lightboxAddress.textContent = "Location: " + (address || "GPS Location");
+            lightboxModal.style.display = "flex";
+        }
+
+        function closePhotoModal(event) {
+            if (!event || event.target === lightboxModal || event.target.classList.contains("lightbox-close")) {
+                lightboxModal.style.display = "none";
+            }
+        }
+
+        // --- Master Map Setup ---
+        const reportsData = [
+            {% for r in reports %}
+                {% if r.latitude and r.longitude %}
+                {
+                    id: {{ r.id }},
+                    name: "{{ r.reporter_name or 'Citizen' }}",
+                    phone: "{{ r.reporter_phone or '' }}",
+                    address: "{{ r.address or '' }}",
+                    lat: {{ r.latitude }},
+                    lng: {{ r.longitude }},
+                    waste_type: "{{ r.waste_type or 'General' }}",
+                    severity: "{{ r.severity or 'Medium' }}",
+                    status: "{{ r.status }}",
+                    image: "{{ r.image_path or '' }}"
+                },
+                {% endif %}
+            {% endfor %}
+        ];
+
+        let defaultCenter = [17.6868, 83.2185];
+        if (reportsData.length > 0) {
+            defaultCenter = [reportsData[0].lat, reportsData[0].lng];
+        }
+
+        const map = L.map("officer-map").setView(defaultCenter, 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        const markersGroup = L.featureGroup().addTo(map);
+
+        reportsData.forEach(r => {
+            let color = "#d93838"; // red
+            if (r.status === "Resolved") color = "#2e8b57"; // green
+            else if (r.status === "In Progress") color = "#e67e22"; // orange
+
+            const markerHtml = `
+                <div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
+                    !
+                </div>
+            `;
+
+            const customIcon = L.divIcon({
+                html: markerHtml,
+                className: "custom-map-marker",
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+
+            const marker = L.marker([r.lat, r.lng], { icon: customIcon }).addTo(markersGroup);
+            
+            const popupContent = `
+                <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 200px;">
+                    <strong style="color: #2e8b57; font-size: 14px;">#WW-${r.id}</strong><br>
+                    <strong>👤 Reporter:</strong> ${r.name}<br>
+                    <strong>📱 Phone:</strong> ${r.phone || 'N/A'}<br>
+                    <strong>🏷️ Waste:</strong> ${r.waste_type} (${r.severity})<br>
+                    <strong>Status:</strong> <b>${r.status}</b><br>
+                    <p style="margin: 6px 0 0; font-size: 11px; color: #666;">${r.address}</p>
+                </div>
+            `;
+
+            marker.bindPopup(popupContent);
+        });
+
+        if (reportsData.length > 1) {
+            map.fitBounds(markersGroup.getBounds().pad(0.1));
+        }
+
+        // --- Client-Side Search & Filter Logic ---
+        const searchInput = document.getElementById("report-search");
+        const statusFilter = document.getElementById("status-filter");
+        const severityFilter = document.getElementById("severity-filter");
+        const reportCards = document.querySelectorAll(".report-card");
+
+        function filterReports() {
+            const query = (searchInput.value || "").toLowerCase();
+            const statusVal = statusFilter.value;
+            const severityVal = severityFilter.value;
+
+            reportCards.forEach(card => {
+                const name = (card.getAttribute("data-name") || "").toLowerCase();
+                const phone = (card.getAttribute("data-phone") || "").toLowerCase();
+                const address = (card.getAttribute("data-address") || "").toLowerCase();
+                const wasteType = (card.getAttribute("data-type") || "").toLowerCase();
+                const status = card.getAttribute("data-status");
+                const severity = card.getAttribute("data-severity");
+
+                const matchesQuery = !query || name.includes(query) || phone.includes(query) || address.includes(query) || wasteType.includes(query);
+                const matchesStatus = (statusVal === "all") || (status === statusVal);
+                const matchesSeverity = (severityVal === "all") || (severity === severityVal);
+
+                if (matchesQuery && matchesStatus && matchesSeverity) {
+                    card.style.display = "flex";
+                } else {
+                    card.style.display = "none";
+                }
+            });
+        }
+
+        searchInput.addEventListener("input", filterReports);
+        statusFilter.addEventListener("change", filterReports);
+        severityFilter.addEventListener("change", filterReports);
+    </script>
+
+</body>
+</html>
