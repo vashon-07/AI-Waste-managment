@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Browser AI Test</title>
+</head>
+<body>
+
+<h2>Waste AI Browser Test</h2>
+
+<input type="file" id="imageInput" accept="image/*">
+<button id="testButton">Test AI</button>
+
+<pre id="result">Select an image...</pre>
+
+<script type="module">
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
+
+    const resultBox = document.getElementById("result");
+    const imageInput = document.getElementById("imageInput");
+    const testButton = document.getElementById("testButton");
+
+    let classifier = null;
+
+    testButton.addEventListener("click", async () => {
+        const file = imageInput.files[0];
+
+        if (!file) {
+            resultBox.textContent = "Please select an image.";
+            return;
+        }
+
+        try {
+            resultBox.textContent = "Loading AI model... This may take a while on first run.";
+
+            if (!classifier) {
+                classifier = await pipeline(
+                    "image-classification",
+                    "Xenova/waste-classification"
+                );
+            }
+
+            resultBox.textContent = "Model loaded. Analyzing image...";
+
+            const predictions = await classifier(file);
+
+            resultBox.textContent =
+                JSON.stringify(predictions, null, 2);
+
+            console.log("Predictions:", predictions);
+
+        } catch (error) {
+            console.error(error);
+            resultBox.textContent =
+                "ERROR:\n\n" + error.message;
+        }
+    });
+</script>
+
+</body>
+</html>
