@@ -326,24 +326,31 @@ def submit_report():
     if not image_path:
         image_path = "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80"
 
-    # AI Classification using Hugging Face ViT model
-    waste_type = None
-    raw_label = None
-    severity = None
-    priority_score = None
+    # --- Priority 1: browser-side Transformers.js classification ---
+    # The report form now submits hidden fields populated by browser AI.
+    waste_type     = request.form.get("browser_waste_type", "").strip() or None
+    raw_label      = request.form.get("browser_raw_label",  "").strip() or None
+    severity       = request.form.get("browser_severity",   "").strip() or None
+    priority_score_str = request.form.get("browser_priority_score", "").strip()
+    try:
+        priority_score = float(priority_score_str) if priority_score_str else None
+    except ValueError:
+        priority_score = None
 
-    if image_bytes:
-        try:
-            ai_res = predict_waste(image_bytes)
-            if ai_res and ai_res.get("success"):
-                waste_type = ai_res.get("waste_type")
-                raw_label = ai_res.get("raw_label")
-                severity = ai_res.get("severity")
-                priority_score = ai_res.get("priority_score")
-        except Exception:
-            pass
+    # --- Priority 2: Python Hugging Face ViT model (fallback) ---
+    if not waste_type or not severity or priority_score is None:
+        if image_bytes:
+            try:
+                ai_res = predict_waste(image_bytes)
+                if ai_res and ai_res.get("success"):
+                    waste_type     = waste_type     or ai_res.get("waste_type")
+                    raw_label      = raw_label      or ai_res.get("raw_label")
+                    severity       = severity       or ai_res.get("severity")
+                    priority_score = priority_score if priority_score is not None else ai_res.get("priority_score")
+            except Exception:
+                pass
 
-    # Fallback to heuristic text/filename analysis if model was unavailable
+    # --- Priority 3: heuristic text/filename analysis ---
     if not waste_type or not severity or priority_score is None:
         waste_type, severity, priority_score = analyze_waste_ai(description, image.filename if image else "")
 

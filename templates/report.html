@@ -124,7 +124,7 @@
     <div id="ai-live-feedback" style="display: none; margin-top: 15px; padding: 14px 18px; border-radius: 12px; background: #f0fdf4; border: 1.5px solid #22c55e; color: #166534; font-size: 14px; text-align: left; box-shadow: 0 4px 12px rgba(34,197,94,0.1);">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
             <span style="font-weight: 700; display: flex; align-items: center; gap: 6px;">
-                🤖 Hugging Face AI Classification
+                🤖 Browser AI Classification
             </span>
             <span id="ai-confidence-badge" style="background: #22c55e; color: #ffffff; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;">
                 Analyzing...
@@ -388,14 +388,19 @@
                         </h3>
 
                         <p>
-                            After submission, AI will analyze
-                            the uploaded image to identify the
-                            waste type and estimate its severity.
+                            AI instantly classifies your image in the browser.
+                            The result is submitted with your report.
                         </p>
 
                     </div>
 
                 </div>
+
+                <!-- Hidden fields: browser AI result sent with form -->
+                <input type="hidden" id="browser_waste_type"   name="browser_waste_type">
+                <input type="hidden" id="browser_raw_label"    name="browser_raw_label">
+                <input type="hidden" id="browser_severity"     name="browser_severity">
+                <input type="hidden" id="browser_priority_score" name="browser_priority_score">
 
 
                 <!-- Submit -->
@@ -415,6 +420,166 @@
    
     <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+<!-- Transformers.js: browser-side AI inference (ESM via importmap) -->
+<script type="importmap">
+{
+  "imports": {
+    "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2/dist/transformers.min.js"
+  }
+}
+</script>
+
+<script type="module">
+import { pipeline } from "@huggingface/transformers";
+
+/* ------------------------------------------------------------------
+   BROWSER AI – Xenova/waste-classification
+   Shared singleton so the model is only downloaded once per page.
+------------------------------------------------------------------ */
+let wasteClassifier = null;
+let classifierLoading = false;
+let classifierReady = false;
+
+async function getClassifier() {
+    if (classifierReady) return wasteClassifier;
+    if (classifierLoading) {
+        // Wait until loading finishes
+        await new Promise(resolve => {
+            const iv = setInterval(() => {
+                if (classifierReady || !classifierLoading) {
+                    clearInterval(iv);
+                    resolve();
+                }
+            }, 200);
+        });
+        return wasteClassifier;
+    }
+    classifierLoading = true;
+    try {
+        wasteClassifier = await pipeline(
+            "image-classification",
+            "Xenova/waste-classification"
+        );
+        classifierReady = true;
+    } finally {
+        classifierLoading = false;
+    }
+    return wasteClassifier;
+}
+
+/* ------------------------------------------------------------------
+   Map raw model label → application waste category
+------------------------------------------------------------------ */
+function mapToWasteCategory(rawLabel) {
+    const label = (rawLabel || "").toLowerCase();
+    if (/plastic|polythene|bottle/.test(label)) return "Plastic Waste";
+    if (/paper|cardboard/.test(label))          return "Paper & Cardboard";
+    if (/metal|can|aluminium/.test(label))      return "Metal Waste";
+    if (/glass/.test(label))                    return "Glass Waste";
+    if (/organic|food|vegetation/.test(label))  return "Organic Waste";
+    if (/electronic|e-waste/.test(label))       return "E-Waste";
+    if (/battery|hazardous|chemical|medical/.test(label)) return "Hazardous Waste";
+    return "Mixed Municipal Waste";
+}
+
+/* ------------------------------------------------------------------
+   Severity & priority derived from waste category
+------------------------------------------------------------------ */
+function deriveSeverity(wasteType) {
+    if (/hazardous/i.test(wasteType))  return "Critical";
+    if (/e-waste|plastic/i.test(wasteType)) return "High";
+    if (/metal|glass|organic/i.test(wasteType)) return "Medium";
+    return "Low";
+}
+
+function derivePriority(wasteType, severity, confidence) {
+    const sevWeight = { Critical: 40, High: 30, Medium: 20, Low: 10 };
+    const typeWeight = {
+        "Hazardous Waste": 35, "E-Waste": 30, "Plastic Waste": 25,
+        "Metal Waste": 18, "Glass Waste": 15, "Organic Waste": 12,
+        "Paper & Cardboard": 10, "Mixed Municipal Waste": 15
+    };
+    const raw = ((sevWeight[severity] || 20) + (typeWeight[wasteType] || 15)) *
+                Math.max(confidence, 0.5);
+    return Math.min(Math.max(raw, 10), 100).toFixed(1);
+}
+
+/* ------------------------------------------------------------------
+   Live classification – replaces the old /api/classify fetch
+------------------------------------------------------------------ */
+window.triggerLiveClassification = async function triggerLiveClassification(fileOrBlob) {
+    const feedbackBox   = document.getElementById("ai-live-feedback");
+    const confBadge     = document.getElementById("ai-confidence-badge");
+    const detectedType  = document.getElementById("ai-detected-type");
+    const detectedSev   = document.getElementById("ai-detected-severity");
+    const detectedScore = document.getElementById("ai-detected-score");
+
+    // Hidden fields written into the form
+    const hidWasteType  = document.getElementById("browser_waste_type");
+    const hidRawLabel   = document.getElementById("browser_raw_label");
+    const hidSeverity   = document.getElementById("browser_severity");
+    const hidPriority   = document.getElementById("browser_priority_score");
+
+    if (!feedbackBox) return;
+
+    feedbackBox.style.display = "block";
+    confBadge.textContent     = "Loading AI model...";
+    confBadge.style.background = "#eab308";
+    detectedType.textContent  = "Downloading model weights (first run only)...";
+    detectedSev.textContent   = "...";
+    detectedScore.textContent = "...";
+
+    try {
+        const classifier = await getClassifier();
+
+        confBadge.textContent    = "Analysing image...";
+        detectedType.textContent = "Running browser inference...";
+
+        // Transformers.js accepts a File/Blob directly via URL.createObjectURL
+        const objectUrl   = URL.createObjectURL(fileOrBlob);
+        const predictions = await classifier(objectUrl);
+        URL.revokeObjectURL(objectUrl);
+
+        if (predictions && predictions.length > 0) {
+            const top       = predictions[0];
+            const rawLabel  = top.label || "";
+            const confidence = top.score || 0.85;
+            const confPct   = (confidence * 100).toFixed(1);
+
+            const wasteType    = mapToWasteCategory(rawLabel);
+            const severity     = deriveSeverity(wasteType);
+            const priorityScore = derivePriority(wasteType, severity, confidence);
+
+            // Update UI
+            confBadge.textContent     = `${confPct}% Match`;
+            confBadge.style.background = "#22c55e";
+            detectedType.textContent  = wasteType;
+            detectedSev.textContent   = `${severity} Priority`;
+            detectedScore.textContent = `${priorityScore}%`;
+
+            // Store result in hidden fields so server receives them on submit
+            if (hidWasteType)  hidWasteType.value  = wasteType;
+            if (hidRawLabel)   hidRawLabel.value   = rawLabel;
+            if (hidSeverity)   hidSeverity.value   = severity;
+            if (hidPriority)   hidPriority.value   = priorityScore;
+        } else {
+            confBadge.textContent     = "Analysis on Submit";
+            confBadge.style.background = "#6b7280";
+            detectedType.textContent  = "Could not classify image";
+            detectedSev.textContent   = "Auto";
+            detectedScore.textContent = "Auto";
+        }
+    } catch (err) {
+        console.warn("Browser AI classification error:", err);
+        confBadge.textContent     = "Analysis on Submit";
+        confBadge.style.background = "#6b7280";
+        detectedType.textContent  = "Will be analysed upon submission";
+        detectedSev.textContent   = "Auto";
+        detectedScore.textContent = "Auto";
+    }
+};
 </script>
 
 <script>
@@ -804,61 +969,11 @@ const usePhotoButton =
 
     });
 
-    async function triggerLiveClassification(fileOrBlob) {
-        const feedbackBox = document.getElementById("ai-live-feedback");
-        const confBadge = document.getElementById("ai-confidence-badge");
-        const detectedType = document.getElementById("ai-detected-type");
-        const detectedSev = document.getElementById("ai-detected-severity");
-        const detectedScore = document.getElementById("ai-detected-score");
-
-        if (!feedbackBox) return;
-
-        feedbackBox.style.display = "block";
-        confBadge.textContent = "Analyzing ViT Model...";
-        confBadge.style.background = "#eab308";
-        detectedType.textContent = "Scanning...";
-        detectedSev.textContent = "...";
-        detectedScore.textContent = "...";
-
-        try {
-            const formData = new FormData();
-            formData.append("image", fileOrBlob);
-
-            const res = await fetch("/api/classify", {
-                method: "POST",
-                body: formData
-            });
-
-            if (!res.ok) throw new Error("Classification request failed");
-            const data = await res.json();
-
-            if (data && data.success) {
-                const conf = data.confidence_percent || (data.confidence_score ? (data.confidence_score * 100).toFixed(1) : 85);
-                confBadge.textContent = `${conf}% Match`;
-                confBadge.style.background = "#22c55e";
-                detectedType.textContent = data.waste_type || data.raw_label || "Identified";
-                detectedSev.textContent = `${data.severity} Priority`;
-                detectedScore.textContent = `${data.priority_score}%`;
-            } else if (data && data.status === "model_loading") {
-                confBadge.textContent = "AI Model Initializing...";
-                confBadge.style.background = "#eab308";
-                detectedType.textContent = data.message || "Model is loading weights...";
-                detectedSev.textContent = "Pending";
-                detectedScore.textContent = "--";
-            } else {
-                confBadge.textContent = "Analysis on Submit";
-                confBadge.style.background = "#6b7280";
-                detectedType.textContent = "Will be analyzed upon submission";
-                detectedSev.textContent = "Auto";
-                detectedScore.textContent = "Auto";
-            }
-        } catch (err) {
-            console.warn("Live classification info:", err);
-            confBadge.textContent = "Analysis on Submit";
-            confBadge.style.background = "#6b7280";
-            detectedType.textContent = "Will be analyzed upon submission";
-            detectedSev.textContent = "Auto";
-            detectedScore.textContent = "Auto";
+    // triggerLiveClassification is defined in the ESM <script type="module"> block above.
+    // The DOMContentLoaded wrapper calls it via window.triggerLiveClassification.
+    function triggerLiveClassification(fileOrBlob) {
+        if (typeof window.triggerLiveClassification === "function") {
+            window.triggerLiveClassification(fileOrBlob);
         }
     }
 
