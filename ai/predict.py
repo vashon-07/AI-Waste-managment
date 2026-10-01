@@ -117,7 +117,11 @@ def predict_waste(
     classifier = get_classifier(model_name) if model_name else get_classifier()
     result = classifier.predict(image_input)
 
-    # Enhance with domain calculations
+    # If the model is not ready, return the loading response directly
+    if not result.get("success"):
+        return result
+
+    # Enhance with domain calculations for genuine model predictions
     severity = result.get("severity") or calculate_severity([], result.get("waste_type", ""))
     confidence = result.get("confidence_score", 0.85)
     priority_score = calculate_priority_score(

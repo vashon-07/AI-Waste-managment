@@ -839,9 +839,18 @@ const usePhotoButton =
                 detectedType.textContent = data.waste_type || data.raw_label || "Identified";
                 detectedSev.textContent = `${data.severity} Priority`;
                 detectedScore.textContent = `${data.priority_score}%`;
+            } else if (data && data.status === "model_loading") {
+                confBadge.textContent = "AI Model Initializing...";
+                confBadge.style.background = "#eab308";
+                detectedType.textContent = data.message || "Model is loading weights...";
+                detectedSev.textContent = "Pending";
+                detectedScore.textContent = "--";
             } else {
                 confBadge.textContent = "Analysis on Submit";
                 confBadge.style.background = "#6b7280";
+                detectedType.textContent = "Will be analyzed upon submission";
+                detectedSev.textContent = "Auto";
+                detectedScore.textContent = "Auto";
             }
         } catch (err) {
             console.warn("Live classification info:", err);

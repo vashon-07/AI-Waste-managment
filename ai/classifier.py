@@ -199,21 +199,16 @@ class HuggingFaceWasteClassifier(BaseWasteClassifier):
             except Exception as ex:
                 logger.warning(f"Inference exception using HF pipeline: {ex}.")
 
-        # If model is loading or downloading, trigger background loading and return fast response
+        # If model is loading or downloading, trigger background loading and return explicit loading status
         if not self._is_ready and not self._is_loading:
             self._start_background_loading()
 
         return {
-            "success": True,
-            "waste_type": "Recyclable / Mixed Waste",
-            "raw_label": "recyclable",
-            "confidence_score": 0.89,
-            "confidence_percent": 89.0,
-            "severity": "Medium",
-            "priority_score": 64.0,
-            "top_predictions": [{"label": "recyclable", "score": 0.89}],
-            "model_name": self.model_name,
-            "is_ready": False
+            "success": False,
+            "status": "model_loading",
+            "message": "AI model is still loading. Please try again shortly.",
+            "is_ready": False,
+            "model_name": self.model_name
         }
 
 
