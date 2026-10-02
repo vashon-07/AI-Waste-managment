@@ -463,37 +463,75 @@
         });
 
         /* ── Eye-toggle: works for all .toggle-pw-btn buttons ── */
-        document.querySelectorAll(".toggle-pw-btn").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var targetId = btn.getAttribute("data-target");
-                var inp = document.getElementById(targetId);
-                if (!inp) return;
-                var hidden = inp.type === "password";
-                inp.type = hidden ? "text" : "password";
-                btn.querySelector(".eye-on").style.display  = hidden ? "none"  : "";
-                btn.querySelector(".eye-off").style.display = hidden ? ""      : "none";
-                btn.setAttribute("aria-label", hidden ? "Hide password" : "Show password");
-                inp.focus();
-            });
+        document.addEventListener("click", function (e) {
+            var btn = e.target.closest(".toggle-pw-btn");
+            if (!btn) return;
+            var targetId = btn.getAttribute("data-target");
+            var inp = document.getElementById(targetId);
+            if (!inp) return;
+            var hidden = inp.type === "password";
+            inp.type = hidden ? "text" : "password";
+            var eyeOn = btn.querySelector(".eye-on");
+            var eyeOff = btn.querySelector(".eye-off");
+            if (eyeOn) eyeOn.style.display = hidden ? "none" : "";
+            if (eyeOff) eyeOff.style.display = hidden ? "" : "none";
+            btn.setAttribute("aria-label", hidden ? "Hide password" : "Show password");
+            inp.focus();
         });
 
         /* ── Forgot-password modal (citizen login) ── */
-        var fpOverlay  = document.getElementById("fp-overlay");
-        var fpOpenBtn  = document.getElementById("open-forgot-pw");
-        var fpCloseBtn = document.getElementById("fp-close");
-        var fpStep1    = document.getElementById("fp-step1");
-        var fpStep2    = document.getElementById("fp-step2");
-        var fpNextBtn  = document.getElementById("fp-next");
-        var fpEmailIn  = document.getElementById("fp-email");
-        var fpConfMsg  = document.getElementById("fp-conf-msg");
+        var fpOverlay       = document.getElementById("fp-overlay");
+        var fpOpenBtn       = document.getElementById("open-forgot-pw");
+        var fpCloseBtn      = document.getElementById("fp-close");
+        var fpStep1         = document.getElementById("fp-step1");
+        var fpStep2         = document.getElementById("fp-step2");
+        var fpResetBtn      = document.getElementById("fp-reset-btn");
+        var fpBackBtn       = document.getElementById("fp-back-btn");
+        var fpIdentIn       = document.getElementById("fp-identifier");
+        var fpNewPwIn       = document.getElementById("fp-new-password");
+        var fpConfPwIn      = document.getElementById("fp-confirm-password");
+        var fpErrorBox      = document.getElementById("fp-error");
+        var loginEmailInput = document.getElementById("login-email");
+        var loginPwInput    = document.getElementById("login-password");
+
+        function fpShowError(msg) {
+            if (fpErrorBox) {
+                fpErrorBox.textContent = msg;
+                fpErrorBox.style.display = "block";
+            }
+        }
+
+        function fpClearError() {
+            if (fpErrorBox) {
+                fpErrorBox.textContent = "";
+                fpErrorBox.style.display = "none";
+            }
+        }
 
         function fpOpen() {
             fpStep1.style.display = "";
             fpStep2.style.display = "none";
-            if (fpEmailIn) fpEmailIn.value = "";
+            fpClearError();
+            if (fpNewPwIn) fpNewPwIn.value = "";
+            if (fpConfPwIn) fpConfPwIn.value = "";
+            if (fpIdentIn) {
+                var preVal = (loginEmailInput && loginEmailInput.value) ? loginEmailInput.value.trim() : "";
+                fpIdentIn.value = preVal;
+            }
+            if (fpResetBtn) {
+                fpResetBtn.disabled = false;
+                fpResetBtn.innerHTML = "&#128273; Reset Password";
+            }
             fpOverlay.classList.add("open");
-            setTimeout(function () { if (fpEmailIn) fpEmailIn.focus(); }, 80);
+            setTimeout(function () {
+                if (fpIdentIn && !fpIdentIn.value) {
+                    fpIdentIn.focus();
+                } else if (fpNewPwIn) {
+                    fpNewPwIn.focus();
+                }
+            }, 80);
         }
+
         function fpClose() {
             fpOverlay.classList.remove("open");
             if (fpOpenBtn) fpOpenBtn.focus();
@@ -510,48 +548,185 @@
             if (e.key === "Escape" && fpOverlay && fpOverlay.classList.contains("open")) fpClose();
         });
 
-        if (fpNextBtn) {
-            fpNextBtn.addEventListener("click", function () {
-                var em = fpEmailIn ? fpEmailIn.value.trim() : "";
-                var msg = em
-                    ? "Please contact our support team with your registered email <strong>" + em.replace(/</g,"&lt;").replace(/>/g,"&gt;") + "</strong> to reset your password."
-                    : "Please contact our support team with your registered email address to reset your password.";
-                if (fpConfMsg) fpConfMsg.innerHTML = msg;
-                fpStep1.style.display = "none";
-                fpStep2.style.display = "";
+        if (fpBackBtn) {
+            fpBackBtn.addEventListener("click", function () {
+                var idVal = fpIdentIn ? fpIdentIn.value.trim() : "";
+                if (loginEmailInput && idVal) loginEmailInput.value = idVal;
+                fpClose();
+                if (loginPwInput) {
+                    loginPwInput.value = "";
+                    loginPwInput.focus();
+                }
             });
         }
+
+        function doPasswordReset() {
+            fpClearError();
+            var ident = fpIdentIn ? fpIdentIn.value.trim() : "";
+            var newPw = fpNewPwIn ? fpNewPwIn.value : "";
+            var confPw = fpConfPwIn ? fpConfPwIn.value : "";
+
+            if (!ident) {
+                fpShowError("Please enter your registered email address or 10-digit mobile number.");
+                if (fpIdentIn) fpIdentIn.focus();
+                return;
+            }
+
+            if (!newPw) {
+                fpShowError("Please enter a new password.");
+                if (fpNewPwIn) fpNewPwIn.focus();
+                return;
+            }
+
+            var hasUpper = /[A-Z]/.test(newPw);
+            var hasLower = /[a-z]/.test(newPw);
+            var hasNum   = /[0-9]/.test(newPw);
+            var hasSpec  = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPw);
+
+            if (newPw.length < 8 || !hasUpper || !hasLower || !hasNum || !hasSpec) {
+                fpShowError("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
+                if (fpNewPwIn) fpNewPwIn.focus();
+                return;
+            }
+
+            if (newPw !== confPw) {
+                fpShowError("Passwords do not match. Please re-enter.");
+                if (fpConfPwIn) fpConfPwIn.focus();
+                return;
+            }
+
+            if (fpResetBtn) {
+                fpResetBtn.disabled = true;
+                fpResetBtn.innerHTML = "Resetting Password...";
+            }
+
+            fetch("/api/reset-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    identifier: ident,
+                    new_password: newPw,
+                    confirm_password: confPw
+                })
+            })
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, data: data };
+                });
+            })
+            .then(function (resObj) {
+                if (resObj.ok && resObj.data && resObj.data.success) {
+                    fpStep1.style.display = "none";
+                    fpStep2.style.display = "";
+                } else {
+                    var errMsg = (resObj.data && resObj.data.message) ? resObj.data.message : "Password reset failed. Please try again.";
+                    fpShowError(errMsg);
+                    if (fpResetBtn) {
+                        fpResetBtn.disabled = false;
+                        fpResetBtn.innerHTML = "&#128273; Reset Password";
+                    }
+                }
+            })
+            .catch(function (err) {
+                fpShowError("Network error. Please check your connection and try again.");
+                if (fpResetBtn) {
+                    fpResetBtn.disabled = false;
+                    fpResetBtn.innerHTML = "&#128273; Reset Password";
+                }
+            });
+        }
+
+        if (fpResetBtn) {
+            fpResetBtn.addEventListener("click", doPasswordReset);
+        }
+
+        [fpIdentIn, fpNewPwIn, fpConfPwIn].forEach(function (inp) {
+            if (inp) {
+                inp.addEventListener("keydown", function (e) {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        doPasswordReset();
+                    }
+                });
+            }
+        });
     </script>
 
     <!-- Forgot-password modal -->
     <div id="fp-overlay" class="fp-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fp-title">
         <div class="fp-modal">
             <button type="button" class="fp-modal-close" id="fp-close" aria-label="Close">&times;</button>
-            <!-- Step 1 -->
+            <!-- Step 1: Request Password Reset -->
             <div id="fp-step1">
                 <div class="fp-modal-icon">&#128274;</div>
-                <h2 id="fp-title">Forgot Password?</h2>
-                <div class="fp-modal-info">
-                    <strong>Self-service password reset is not available.</strong><br><br>
-                    Enter your registered email below and our support team will help you regain access.
-                    Your password will never be shared.
+                <h2 id="fp-title">Reset Password</h2>
+                <div class="fp-modal-info" style="font-size:13.5px; padding:12px 14px; margin-bottom:14px;">
+                    Enter your registered email or 10-digit mobile number and create a new password.
                 </div>
+
+                <div id="fp-error" style="display:none; color:#b91c1c; background:#fef2f2; border:1.5px solid #fecaca; padding:10px 14px; border-radius:10px; font-size:13px; margin-bottom:12px; line-height:1.45;"></div>
+
                 <div class="fp-id-form">
-                    <label for="fp-email">Registered Email <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
-                    <input type="email" id="fp-email" placeholder="name@example.com" autocomplete="email">
+                    <label for="fp-identifier">Registered Email or 10-Digit Mobile</label>
+                    <input type="text" id="fp-identifier" placeholder="name@example.com or 10-digit mobile" autocomplete="username">
                 </div>
-                <button type="button" class="fp-submit-btn" id="fp-next">&#128231; Show Contact Instructions</button>
+
+                <div class="fp-id-form" style="margin-top:12px;">
+                    <label for="fp-new-password">New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="fp-new-password" placeholder="At least 8 chars (A-Z, a-z, 0-9, special)" autocomplete="new-password">
+                        <button type="button" class="toggle-pw-btn" data-target="fp-new-password"
+                            aria-label="Show or hide password" title="Show / hide password">
+                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="fp-id-form" style="margin-top:12px;">
+                    <label for="fp-confirm-password">Confirm New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="fp-confirm-password" placeholder="Re-enter new password" autocomplete="new-password">
+                        <button type="button" class="toggle-pw-btn" data-target="fp-confirm-password"
+                            aria-label="Show or hide password" title="Show / hide password">
+                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="fp-submit-btn" id="fp-reset-btn" style="margin-top:18px;">&#128273; Reset Password</button>
             </div>
-            <!-- Step 2 -->
+            <!-- Step 2: Success Confirmation -->
             <div id="fp-step2" class="fp-step2">
                 <div class="fp-check">&#9989;</div>
-                <h2>Contact Support</h2>
-                <p id="fp-conf-msg">Please contact our support team with your registered email to reset your password.</p>
-                <ul class="fp-contact-list" style="margin-top:14px;">
-                    <li>&#128231; <span>support@wastewatch.gov.in</span></li>
-                    <li>&#128336; <span>Mon &ndash; Fri, 9 AM &ndash; 5 PM IST</span></li>
-                </ul>
-                <p style="margin-top:14px;font-size:12px;color:#9ca3af;">Your account will be verified before any password reset is performed.</p>
+                <h2 style="font-size:18px; margin-bottom:8px;">Password Reset Successful!</h2>
+                <p id="fp-conf-msg" style="color:#4b5563; line-height:1.6;">Your password has been updated. You can now sign in to AI WasteWatch with your new password.</p>
+                <button type="button" class="fp-submit-btn" id="fp-back-btn" style="margin-top:20px;">Proceed to Sign In &rarr;</button>
             </div>
         </div>
     </div>

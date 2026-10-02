@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import requests
+import re
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -819,4 +820,135 @@ def check_supabase_health():
     return health
 
 
+def supabase_auth_reset_password(identifier, new_password):
+    """Reset a citizen user's password in Supabase Auth (and local SQLite fallback).
+    Accepts identifier as email address or 10-digit mobile number.
+    Validates password complexity.
+    Returns (success_boolean, message_string).
+    """
+    ident = str(identifier or "").strip()
+    new_password = str(new_password or "")
 
+    if not ident:
+        return False, "Please enter your registered email address or 10-digit mobile number."
+
+    if not new_password:
+        return False, "Please enter a new password."
+
+    # Validate password complexity (matches registration requirements)
+    if (
+        len(new_password) < 8
+        or not re.search(r"[A-Z]", new_password)
+        or not re.search(r"[a-z]", new_password)
+        or not re.search(r"[0-9]", new_password)
+        or not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", new_password)
+    ):
+        return False, "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
+
+    if IS_VERCEL or is_supabase_enabled():
+        if not is_supabase_enabled():
+            return False, "Authentication service is currently unavailable. Please try again later."
+
+        try:
+            email_target = None
+            auth_uid = None
+
+            # 1. Resolve email if identifier is a mobile number
+            if "@" not in ident:
+                clean_phone = re.sub(r"\D", "", ident)
+                if len(clean_phone) != 10:
+                    return False, "Mobile number must contain exactly 10 digits."
+
+                phone_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{clean_phone}&select=id,email,name"
+                phone_res = requests.get(phone_url, headers=get_supabase_headers(), timeout=6)
+                if phone_res.status_code == 200 and phone_res.json():
+                    row = phone_res.json()[0]
+                    email_target = (row.get("email") or "").strip().lower()
+                    row_id = str(row.get("id") or "")
+                    if len(row_id) == 36 and row_id.count("-") == 4:
+                        auth_uid = row_id
+                else:
+                    return False, f"No registered account found with mobile number {clean_phone}."
+            else:
+                email_target = ident.lower()
+
+            if not email_target:
+                return False, "Unable to determine the registered email address for this account."
+
+            # 2. If auth_uid is not yet resolved, query public.users by email
+            if not auth_uid:
+                prof_url = f"{SUPABASE_URL}/rest/v1/users?email=ilike.{email_target}&select=id,email,name"
+                prof_res = requests.get(prof_url, headers=get_supabase_headers(), timeout=6)
+                if prof_res.status_code == 200 and prof_res.json():
+                    row = prof_res.json()[0]
+                    row_id = str(row.get("id") or "")
+                    if len(row_id) == 36 and row_id.count("-") == 4:
+                        auth_uid = row_id
+
+            # 3. If auth_uid is still not known, search Supabase Auth Admin users list
+            if not auth_uid:
+                admin_users_url = f"{SUPABASE_URL}/auth/v1/admin/users?per_page=100"
+                admin_res = requests.get(admin_users_url, headers=get_supabase_headers(), timeout=8)
+                if admin_res.status_code == 200:
+                    data = admin_res.json()
+                    user_list = data.get("users", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+                    for u in user_list:
+                        if (u.get("email") or "").strip().lower() == email_target:
+                            auth_uid = u.get("id")
+                            break
+
+            # 4. If user not found in Auth
+            if not auth_uid:
+                return False, f"No registered account found matching {ident}."
+
+            # 5. Update password via Supabase Admin API
+            update_url = f"{SUPABASE_URL}/auth/v1/admin/users/{auth_uid}"
+            update_payload = {
+                "password": new_password,
+                "email_confirm": True
+            }
+            update_res = requests.put(update_url, json=update_payload, headers=get_supabase_headers(), timeout=10)
+            print(f"[Supabase Auth Reset Password] User ID: {auth_uid}, Status: {update_res.status_code}")
+
+            if update_res.status_code in (200, 204):
+                # Clean up or sync public.users row
+                try:
+                    requests.patch(
+                        f"{SUPABASE_URL}/rest/v1/users?email=ilike.{email_target}",
+                        json={"password": ""},
+                        headers=get_supabase_headers(),
+                        timeout=5
+                    )
+                except Exception:
+                    pass
+                return True, "Your password has been successfully reset! You can now log in with your new password."
+            else:
+                err_json = update_res.json() if update_res.text else {}
+                err_msg = err_json.get("msg") or err_json.get("message") or f"Supabase Auth error (HTTP {update_res.status_code})"
+                print(f"[Supabase Auth Reset Password Error]: {err_msg}")
+                return False, f"Password reset failed: {err_msg}"
+
+        except Exception as e:
+            print(f"[Supabase Auth Reset Password Exception]: {e}")
+            return False, f"Error communicating with authentication service: {str(e)}"
+
+    # Local development SQLite fallback (when offline)
+    try:
+        init_cloud_db()
+        conn = sqlite3.connect(LOCAL_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? OR phone = ?", (ident.lower(), ident))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False, f"No registered account found with {ident}."
+
+        hashed_pw = generate_password_hash(new_password)
+        cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hashed_pw, row["id"]))
+        conn.commit()
+        conn.close()
+        return True, "Your password has been successfully reset! You can now log in with your new password."
+    except Exception as e:
+        print(f"[Local Reset Fallback Error]: {e}")
+        return False, "Failed to update password in local database."

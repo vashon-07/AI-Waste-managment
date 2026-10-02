@@ -16,6 +16,7 @@ from cloud_db import (
     create_or_update_user,
     supabase_auth_signup,
     supabase_auth_signin,
+    supabase_auth_reset_password,
     cleanup_expired_reports,
     init_cloud_db,
     log_safe_diagnostics,
@@ -308,6 +309,26 @@ def catch_all(path):
                     return render_template("login.html", message="Invalid email/mobile number or password. Please try again.", is_error=True)
 
         return render_template("login.html")
+
+    # 2b. Citizen Forgot / Reset Password API
+    elif target in ("forgot-password", "api/forgot-password", "reset-password", "api/reset-password"):
+        if request.method == "POST":
+            data = request.get_json(silent=True) or request.form
+            identifier = (data.get("identifier") or data.get("email") or "").strip()
+            new_password = data.get("new_password") or data.get("password") or ""
+            confirm_password = data.get("confirm_password") or ""
+
+            if not identifier or not new_password:
+                return jsonify({"success": False, "message": "Identifier and new password are required."}), 400
+
+            if confirm_password and new_password != confirm_password:
+                return jsonify({"success": False, "message": "Passwords do not match. Please re-enter."}), 400
+
+            success, message = supabase_auth_reset_password(identifier, new_password)
+            status_code = 200 if success else 400
+            return jsonify({"success": success, "message": message}), status_code
+
+        return redirect("/login")
 
     # 3. Citizen Dashboard (Personal report history & statistics)
     elif target in ("citizen-dashboard", "citizen/dashboard", "account", "api/citizen-dashboard", "api/account"):
