@@ -104,23 +104,29 @@ init_db()
 
 
 def analyze_waste_ai(description, filename=""):
-    """Heuristic AI analyzer estimating waste type, severity, and priority score."""
-    desc = (description or "").lower()
-    
-    if any(k in desc for k in ["chemical", "medical", "hospital", "bio", "battery", "toxic", "hazard"]):
-        return "Hazardous Waste", "Critical", 95.0
-    elif any(k in desc for k in ["electronic", "e-waste", "wire", "computer", "phone", "tv"]):
-        return "E-Waste", "High", 85.0
-    elif any(k in desc for k in ["plastic", "bottle", "polythene", "bag", "wrapper"]):
-        return "Plastic Waste", "High", 78.0
-    elif any(k in desc for k in ["food", "organic", "vegetable", "fruit", "animal", "decay"]):
-        return "Organic Waste", "Medium", 62.0
-    elif any(k in desc for k in ["glass", "bottle", "shard"]):
-        return "Glass Waste", "Medium", 58.0
-    elif any(k in desc for k in ["paper", "cardboard", "carton"]):
-        return "Paper / Cardboard", "Low", 45.0
+    """Heuristic AI analyzer estimating waste type, severity, and priority score from description and filename."""
+    text = f"{description or ''} {filename or ''}".lower()
+
+    if any(k in text for k in ["chemical", "medical", "hospital", "bio", "battery", "toxic", "hazard", "syringe", "pharma"]):
+        return "Hazardous Waste", "Critical", 94.0
+    elif any(k in text for k in ["electronic", "e-waste", "wire", "computer", "phone", "tv", "charger", "cable", "circuit", "laptop"]):
+        return "E-Waste", "High", 86.0
+    elif any(k in text for k in ["plastic", "bottle", "polythene", "bag", "wrapper", "container", "cup", "pvc", "packet"]):
+        return "Plastic Waste", "High", 79.5
+    elif any(k in text for k in ["can", "tin", "metal", "iron", "steel", "aluminum", "scrap", "rod", "foil"]):
+        return "Metal Waste", "Medium", 67.5
+    elif any(k in text for k in ["glass", "bottle", "shard", "mirror", "broken glass"]):
+        return "Glass Waste", "Medium", 59.0
+    elif any(k in text for k in ["food", "organic", "vegetable", "fruit", "animal", "decay", "leaves", "kitchen", "wet waste", "garbage"]):
+        return "Organic Waste", "Medium", 63.5
+    elif any(k in text for k in ["paper", "cardboard", "carton", "box", "newspaper", "books", "dry waste"]):
+        return "Paper & Cardboard", "Low", 46.0
+    elif any(k in text for k in ["construction", "debris", "rubble", "concrete", "brick", "stone", "silt", "sludge"]):
+        return "Construction Debris", "High", 74.0
     else:
-        return "Mixed Municipal Waste", "Medium", 68.0
+        # Dynamic score variation rather than a frozen static number
+        dyn_score = 62.0 + (len(text) % 15)
+        return "Mixed Municipal Waste", "Medium", round(dyn_score, 1)
 
 
 # Authorized Municipal Officer accounts (Restricted from citizen login)
