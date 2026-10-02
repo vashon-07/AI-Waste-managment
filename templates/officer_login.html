@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -142,7 +142,7 @@
                     <label for="officer_id">Officer ID or Official Email</label>
                     <input type="text" id="officer_id" name="officer_id"
                         placeholder="e.g. OFC-7082 or officer@municipality.gov.in"
-                        value="officer@municipality.gov.in" required>
+                        autocomplete="username" required>
                 </div>
                 <div class="input-group">
                     <label for="ward">Assigned Ward / Jurisdiction</label>
@@ -160,7 +160,7 @@
                     <div class="password-wrapper">
                         <input type="password" id="officer_password" name="officer_password"
                             placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
-                            value="Officer@123" required>
+                            autocomplete="current-password" required>
                         <!-- type="button" prevents accidental form submit -->
                         <button type="button" id="toggle-password"
                             class="toggle-password-btn"
@@ -171,8 +171,8 @@
                                  width="20" height="20" viewBox="0 0 24 24"
                                  fill="none" stroke="currentColor"
                                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
+                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                 <circle cx="12" cy="12" r="3"/>
                             </svg>
                             <!-- Eye off (password visible) -->
                             <svg id="eye-off-icon" xmlns="http://www.w3.org/2000/svg"
@@ -195,7 +195,7 @@
                 <!-- end password group -->
                 <button type="submit" class="login-btn officer-login-btn">&#128272; Access Officer Dashboard</button>
                 <div class="officer-demo-hint">
-                    <p>&#128161; <strong>Demo Credentials Ready:</strong> Simply click "Access Officer Dashboard" to test.</p>
+                    <p>&#128161; <strong>Demo account available for testing:</strong> Enter authorized credentials to continue.</p>
                 </div>
                 <div class="login-footer">
                     <p>Are you a citizen? <a href="/report">Submit a Waste Report</a> or <a href="/login">Citizen Login</a></p>
