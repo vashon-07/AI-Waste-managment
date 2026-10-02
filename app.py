@@ -13,6 +13,7 @@ from cloud_db import (
     get_user_by_credentials,
     get_user_by_phone,
     create_or_update_user,
+    verify_password,
     cleanup_expired_reports,
     init_cloud_db
 )
@@ -256,7 +257,10 @@ def catch_all(path):
                 if password != confirm_password:
                     return render_template("login.html", message="Passwords do not match. Please try again.", is_error=True)
 
-                create_or_update_user(name, phone, email, password, role)
+                success, err = create_or_update_user(name, phone, email, password, role)
+                if not success and err in ("connection_error", "service_error"):
+                    return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True)
+
                 session["citizen_phone"] = phone
                 session["citizen_name"] = name
 
@@ -269,11 +273,11 @@ def catch_all(path):
                 identifier = request.form.get("email", "").strip()
                 password = request.form.get("password", "")
 
-                user = get_user_by_credentials(identifier, password)
-                if not user and identifier.isdigit() and len(identifier) == 10:
-                    user = get_user_by_phone(identifier)
-                    if user and user.get("password") != password:
-                        user = None
+                user, err = get_user_by_credentials(identifier, password)
+                if not user and identifier.isdigit() and len(identifier) == 10 and not err:
+                    candidate = get_user_by_phone(identifier)
+                    if candidate and verify_password(candidate.get("password"), password):
+                        user = candidate
 
                 if user:
                     session["citizen_phone"] = user["phone"]
@@ -283,6 +287,8 @@ def catch_all(path):
                     resp.set_cookie("citizen_phone", user["phone"], max_age=86400 * 30, httponly=True, samesite="Lax")
                     resp.set_cookie("citizen_name", user["name"], max_age=86400 * 30, httponly=True, samesite="Lax")
                     return resp
+                elif err in ("connection_error", "service_error"):
+                    return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True)
                 else:
                     return render_template("login.html", message="Invalid email/mobile number or password. Please try again.", is_error=True)
 

@@ -2,6 +2,7 @@ import os
 import sqlite3
 import requests
 from datetime import datetime, timedelta, timezone
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Load environment variables manually or from system
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -31,6 +32,20 @@ LOCAL_DB_PATH = "/tmp/wastewatch.db" if IS_VERCEL else os.path.join(os.path.dirn
 
 def is_supabase_enabled():
     return bool(SUPABASE_URL and SUPABASE_KEY)
+
+
+def verify_password(stored_password, provided_password):
+    """Securely verify password against cryptographic hash, with fallback for legacy demo accounts."""
+    if not stored_password or not provided_password:
+        return False
+    # Check if stored_password is a valid werkzeug hash format (e.g. scrypt:..., pbkdf2:...)
+    if stored_password.startswith(("scrypt:", "pbkdf2:")):
+        try:
+            return check_password_hash(stored_password, provided_password)
+        except Exception:
+            return False
+    # Fallback for legacy demo accounts seeded with raw string
+    return stored_password == provided_password
 
 
 def get_supabase_headers():
@@ -343,33 +358,75 @@ def update_report_status(report_id, new_status):
 
 
 def get_user_by_credentials(identifier, password):
-    """Authenticate citizen user by phone or email and password."""
+    """Authenticate citizen user by phone or email and password.
+    Returns (user_dict, error_status).
+    """
     init_cloud_db()
     ident = (identifier or "").strip().lower()
+
+    if is_supabase_enabled():
+        try:
+            # Query Supabase by phone or email (case-insensitive for email)
+            url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{ident},email.ilike.{ident})"
+            resp = requests.get(url, headers=get_supabase_headers(), timeout=5)
+            if resp.status_code == 200:
+                rows = resp.json()
+                if rows:
+                    user = rows[0]
+                    if verify_password(user.get("password"), password):
+                        return user, None
+                    return None, "invalid_credentials"
+                return None, "invalid_credentials"
+            else:
+                print(f"[Supabase Auth Error] HTTP {resp.status_code}: {resp.text}")
+                return None, "service_error"
+        except Exception as e:
+            print(f"[Supabase Auth Connection Error]: {e}")
+            return None, "connection_error"
+
+    # Fallback to SQLite
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("""
             SELECT * FROM users
-            WHERE (LOWER(phone) = ? OR LOWER(email) = ?) AND password = ?
-        """, (ident, ident, password))
+            WHERE LOWER(phone) = ? OR LOWER(email) = ?
+        """, (ident, ident))
         row = cursor.fetchone()
         conn.close()
-        return dict(row) if row else None
+        if row:
+            user = dict(row)
+            if verify_password(user.get("password"), password):
+                return user, None
+            return None, "invalid_credentials"
+        return None, "invalid_credentials"
     except Exception as e:
         print(f"[get_user_by_credentials Error]: {e}")
-        return None
+        return None, "service_error"
 
 
 def get_user_by_phone(phone):
     """Retrieve citizen user by 10-digit phone number."""
     init_cloud_db()
+    phone_clean = str(phone).strip()
+
+    if is_supabase_enabled():
+        try:
+            url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone_clean}"
+            resp = requests.get(url, headers=get_supabase_headers(), timeout=5)
+            if resp.status_code == 200:
+                rows = resp.json()
+                if rows:
+                    return rows[0]
+        except Exception as e:
+            print(f"[Supabase get_user_by_phone Error]: {e}")
+
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE phone = ?", (str(phone).strip(),))
+        cursor.execute("SELECT * FROM users WHERE phone = ?", (phone_clean,))
         row = cursor.fetchone()
         conn.close()
         return dict(row) if row else None
@@ -379,11 +436,52 @@ def get_user_by_phone(phone):
 
 
 def create_or_update_user(name, phone, email, password, role="citizen"):
-    """Register or update a citizen account."""
+    """Register or update a citizen account with cryptographic password hashing.
+    Returns (success_bool, error_status).
+    """
     init_cloud_db()
     name = (name or "").strip()
     phone = (phone or "").strip()
     email = (email or "").strip().lower()
+    hashed_password = generate_password_hash(password)
+
+    if is_supabase_enabled():
+        try:
+            # Check if user already exists in Supabase
+            check_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
+            check_resp = requests.get(check_url, headers=get_supabase_headers(), timeout=5)
+            if check_resp.status_code == 200:
+                existing = check_resp.json()
+                if existing:
+                    patch_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
+                    patch_payload = {
+                        "name": name,
+                        "email": email,
+                        "password": hashed_password,
+                        "role": role
+                    }
+                    resp = requests.patch(patch_url, json=patch_payload, headers=get_supabase_headers(), timeout=5)
+                    if resp.status_code in (200, 204):
+                        return True, None
+                else:
+                    post_url = f"{SUPABASE_URL}/rest/v1/users"
+                    post_payload = {
+                        "name": name,
+                        "phone": phone,
+                        "email": email,
+                        "password": hashed_password,
+                        "role": role
+                    }
+                    resp = requests.post(post_url, json=post_payload, headers=get_supabase_headers(), timeout=5)
+                    if resp.status_code in (200, 201):
+                        return True, None
+            print(f"[Supabase create_or_update_user Error] HTTP {check_resp.status_code}")
+            return False, "service_error"
+        except Exception as e:
+            print(f"[Supabase create_or_update_user Connection Error]: {e}")
+            return False, "connection_error"
+
+    # Fallback to SQLite
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         cursor = conn.cursor()
@@ -395,11 +493,12 @@ def create_or_update_user(name, phone, email, password, role="citizen"):
                 email=excluded.email,
                 password=excluded.password,
                 role=excluded.role
-        """, (name, phone, email, password, role))
+        """, (name, phone, email, hashed_password, role))
         conn.commit()
         conn.close()
-        return True
+        return True, None
     except Exception as e:
         print(f"[create_or_update_user Error]: {e}")
-        return False
+        return False, "service_error"
+
 
