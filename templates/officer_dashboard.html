@@ -308,9 +308,9 @@
                         <!-- Status Action Controls for Officer -->
                         <div class="officer-actions" style="margin-top: 14px;">
                             <label><strong>Update Action Status:</strong></label>
-                            <form action="/update-status" method="POST" class="status-update-form">
+                            <form action="/update-status" method="POST" class="status-update-form" onsubmit="return false;">
                                 <input type="hidden" name="report_id" value="{{ r.id }}">
-                                <select name="new_status" onchange="this.form.submit()" class="status-select">
+                                <select name="new_status" onchange="handleStatusChange(this)" class="status-select">
                                     <option value="Pending" {% if r_norm == 'Pending' %}selected{% endif %}>⏳ Pending</option>
                                     <option value="Under Inspection" {% if r_norm == 'Under Inspection' %}selected{% endif %}>🚧 Under Inspection / In Progress</option>
                                     <option value="Cleaned & Resolved" {% if r_norm == 'Cleaned & Resolved' %}selected{% endif %}>✅ Cleaned & Resolved</option>
@@ -578,6 +578,119 @@
                 });
                 filterReports();
             });
+        }
+
+        function updatePillCounts() {
+            let pCount = 0;
+            let ipCount = 0;
+            let rCount = 0;
+
+            reportCards.forEach(card => {
+                const norm = card.getAttribute("data-status-norm");
+                if (norm === "Pending") pCount++;
+                else if (norm === "Under Inspection") ipCount++;
+                else if (norm === "Cleaned & Resolved") rCount++;
+            });
+
+            const activeCount = pCount + ipCount;
+
+            filterPillBtns.forEach(btn => {
+                const f = btn.getAttribute("data-filter");
+                const countSpan = btn.querySelector(".pill-count");
+                if (countSpan) {
+                    if (f === "active") countSpan.textContent = activeCount;
+                    else if (f === "Pending") countSpan.textContent = pCount;
+                    else if (f === "Under Inspection") countSpan.textContent = ipCount;
+                    else if (f === "Cleaned & Resolved") countSpan.textContent = rCount;
+                }
+            });
+
+            const statPending = document.querySelector(".stat-card.pending .stat-value");
+            if (statPending) statPending.textContent = pCount;
+            const statProgress = document.querySelector(".stat-card.progress .stat-value");
+            if (statProgress) statProgress.textContent = ipCount;
+            const statResolved = document.querySelector(".stat-card.resolved .stat-value");
+            if (statResolved) statResolved.textContent = rCount;
+        }
+
+        async function handleStatusChange(selectElem) {
+            const form = selectElem.closest("form");
+            const card = selectElem.closest(".report-card");
+            const reportId = form.querySelector("input[name='report_id']").value;
+            const newStatus = selectElem.value;
+
+            let norm = "Pending";
+            if (newStatus === "Cleaned & Resolved" || newStatus === "Resolved") {
+                norm = "Cleaned & Resolved";
+            } else if (newStatus === "Under Inspection" || newStatus === "In Progress") {
+                norm = "Under Inspection";
+            }
+
+            selectElem.disabled = true;
+            const origBorder = selectElem.style.borderColor;
+            selectElem.style.borderColor = "#2e8b57";
+
+            try {
+                const formData = new FormData();
+                formData.append("report_id", reportId);
+                formData.append("new_status", newStatus);
+
+                const resp = await fetch("/update-status", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+
+                if (resp.ok) {
+                    card.setAttribute("data-status", newStatus);
+                    card.setAttribute("data-status-norm", norm);
+                    card.className = "report-card status-" + norm.toLowerCase().replace(/\s+/g, "-");
+
+                    const badgeSpan = card.querySelector(".card-header-row .badge-status");
+                    if (badgeSpan) {
+                        if (norm === "Cleaned & Resolved") {
+                            badgeSpan.textContent = "✅ Cleaned & Resolved";
+                            badgeSpan.style = "background: #eaf8ee; color: #2e8b57; border: 1px solid #c2e9cb;";
+                        } else if (norm === "Under Inspection") {
+                            badgeSpan.textContent = "🚧 Under Inspection";
+                            badgeSpan.style = "background: #fff8eb; color: #d97706; border: 1px solid #fde68a;";
+                        } else {
+                            badgeSpan.textContent = "⏳ Pending";
+                            badgeSpan.style = "background: #fff2e5; color: #ea580c; border: 1px solid #fed7aa;";
+                        }
+                    }
+
+                    const intId = parseInt(reportId);
+                    if (markerMap[intId]) {
+                        markerMap[intId].data.status_norm = norm;
+                        markerMap[intId].data.status = newStatus;
+                        let color = "#d93838";
+                        if (norm === "Cleaned & Resolved") color = "#2e8b57";
+                        else if (norm === "Under Inspection") color = "#e67e22";
+
+                        const customIcon = L.divIcon({
+                            html: `<div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">!</div>`,
+                            className: "custom-map-marker",
+                            iconSize: [26, 26],
+                            iconAnchor: [13, 13]
+                        });
+                        markerMap[intId].marker.setIcon(customIcon);
+                    }
+
+                    updatePillCounts();
+                    filterReports();
+                } else {
+                    form.submit();
+                }
+            } catch (err) {
+                console.error("Status update error:", err);
+                form.submit();
+            } finally {
+                selectElem.disabled = false;
+                selectElem.style.borderColor = origBorder;
+            }
         }
 
         searchInput.addEventListener("input", filterReports);

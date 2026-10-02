@@ -586,11 +586,15 @@ def citizen_logout():
 
 @app.route("/update-status", methods=["POST"])
 def update_status():
-    report_id = request.form.get("report_id")
-    new_status = request.form.get("new_status", "Pending")
+    report_id = request.form.get("report_id") or (request.json.get("report_id") if request.is_json else None)
+    new_status = request.form.get("new_status") or (request.json.get("new_status") if request.is_json else None) or "Pending"
 
+    success = False
     if report_id:
-        update_report_status(report_id, new_status)
+        success = update_report_status(report_id, new_status)
+
+    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"success": success, "report_id": report_id, "new_status": new_status})
 
     return redirect("/officer-dashboard")
 

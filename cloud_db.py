@@ -6,7 +6,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 # Load environment variables manually or from system
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+SUPABASE_KEY = (
+    os.environ.get("SUPABASE_KEY")
+    or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("SUPABASE_SECRET_KEY")
+    or ""
+)
 
 # Try reading from .env file if available
 ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -21,7 +26,7 @@ if os.path.exists(ENV_PATH):
                     val = val.strip().strip('"').strip("'")
                     if key == "SUPABASE_URL" and not SUPABASE_URL:
                         SUPABASE_URL = val.rstrip("/")
-                    elif key == "SUPABASE_KEY" and not SUPABASE_KEY:
+                    elif key in ("SUPABASE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY") and not SUPABASE_KEY:
                         SUPABASE_KEY = val
     except Exception:
         pass
@@ -194,7 +199,7 @@ def get_all_reports():
     if is_supabase_enabled():
         try:
             url = f"{SUPABASE_URL}/rest/v1/reports?order=id.desc"
-            resp = requests.get(url, headers=get_supabase_headers(), timeout=5)
+            resp = requests.get(url, headers=get_supabase_headers(), timeout=6)
             if resp.status_code == 200:
                 return resp.json()
             else:
@@ -202,7 +207,10 @@ def get_all_reports():
         except Exception as e:
             print(f"[Supabase Connection Error]: {e}")
 
-    # Fallback to SQLite
+        if IS_VERCEL:
+            return []
+
+    # Fallback to SQLite (local development only)
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -232,13 +240,18 @@ def get_citizen_reports(reporter_phone=None, reporter_name=None):
                 url = f"{SUPABASE_URL}/rest/v1/reports?reporter_phone=eq.{reporter_phone}&order=id.desc"
             else:
                 url = f"{SUPABASE_URL}/rest/v1/reports?reporter_name=eq.{reporter_name}&order=id.desc"
-            resp = requests.get(url, headers=get_supabase_headers(), timeout=5)
+            resp = requests.get(url, headers=get_supabase_headers(), timeout=6)
             if resp.status_code == 200:
                 return resp.json()
+            else:
+                print(f"[Supabase Citizen Fetch Error] HTTP {resp.status_code}: {resp.text}")
         except Exception as e:
             print(f"[Supabase Citizen Fetch Error]: {e}")
 
-    # Fallback to SQLite
+        if IS_VERCEL:
+            return []
+
+    # Fallback to SQLite (local development only)
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -280,7 +293,7 @@ def insert_report(data):
                 "priority_score": float(data.get("priority_score", 50.0)),
                 "status": "Pending"
             }
-            resp = requests.post(url, json=payload, headers=get_supabase_headers(), timeout=6)
+            resp = requests.post(url, json=payload, headers=get_supabase_headers(), timeout=8)
             if resp.status_code in (200, 201):
                 return True
             else:
@@ -288,7 +301,10 @@ def insert_report(data):
         except Exception as e:
             print(f"[Supabase Insert Error]: {e}")
 
-    # Fallback to SQLite
+        if IS_VERCEL:
+            return False
+
+    # Fallback to SQLite (local development only)
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         cursor = conn.cursor()
@@ -336,7 +352,7 @@ def update_report_status(report_id, new_status):
         try:
             url = f"{SUPABASE_URL}/rest/v1/reports?id=eq.{report_id}"
             payload = {"status": standard_status, "resolved_at": resolved_at}
-            resp = requests.patch(url, json=payload, headers=get_supabase_headers(), timeout=5)
+            resp = requests.patch(url, json=payload, headers=get_supabase_headers(), timeout=6)
             if resp.status_code in (200, 204):
                 return True
             else:
@@ -344,7 +360,10 @@ def update_report_status(report_id, new_status):
         except Exception as e:
             print(f"[Supabase Update Error]: {e}")
 
-    # Fallback to SQLite
+        if IS_VERCEL:
+            return False
+
+    # Fallback to SQLite (local development only)
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         cursor = conn.cursor()
@@ -368,7 +387,7 @@ def get_user_by_credentials(identifier, password):
         try:
             # Query Supabase by phone or email (case-insensitive for email)
             url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{ident},email.ilike.{ident})"
-            resp = requests.get(url, headers=get_supabase_headers(), timeout=5)
+            resp = requests.get(url, headers=get_supabase_headers(), timeout=6)
             if resp.status_code == 200:
                 rows = resp.json()
                 if rows:
@@ -384,7 +403,7 @@ def get_user_by_credentials(identifier, password):
             print(f"[Supabase Auth Connection Error]: {e}")
             return None, "connection_error"
 
-    # Fallback to SQLite
+    # Fallback to SQLite (local development only)
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -414,14 +433,20 @@ def get_user_by_phone(phone):
     if is_supabase_enabled():
         try:
             url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone_clean}"
-            resp = requests.get(url, headers=get_supabase_headers(), timeout=5)
+            resp = requests.get(url, headers=get_supabase_headers(), timeout=6)
             if resp.status_code == 200:
                 rows = resp.json()
                 if rows:
                     return rows[0]
+                return None
+            else:
+                print(f"[Supabase get_user_by_phone Error] HTTP {resp.status_code}: {resp.text}")
+                return None
         except Exception as e:
             print(f"[Supabase get_user_by_phone Error]: {e}")
+            return None
 
+    # Fallback to SQLite (local development only)
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -449,7 +474,7 @@ def create_or_update_user(name, phone, email, password, role="citizen"):
         try:
             # Check if user already exists in Supabase
             check_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
-            check_resp = requests.get(check_url, headers=get_supabase_headers(), timeout=5)
+            check_resp = requests.get(check_url, headers=get_supabase_headers(), timeout=6)
             if check_resp.status_code == 200:
                 existing = check_resp.json()
                 if existing:
@@ -460,7 +485,7 @@ def create_or_update_user(name, phone, email, password, role="citizen"):
                         "password": hashed_password,
                         "role": role
                     }
-                    resp = requests.patch(patch_url, json=patch_payload, headers=get_supabase_headers(), timeout=5)
+                    resp = requests.patch(patch_url, json=patch_payload, headers=get_supabase_headers(), timeout=6)
                     if resp.status_code in (200, 204):
                         return True, None
                 else:
@@ -472,16 +497,16 @@ def create_or_update_user(name, phone, email, password, role="citizen"):
                         "password": hashed_password,
                         "role": role
                     }
-                    resp = requests.post(post_url, json=post_payload, headers=get_supabase_headers(), timeout=5)
+                    resp = requests.post(post_url, json=post_payload, headers=get_supabase_headers(), timeout=6)
                     if resp.status_code in (200, 201):
                         return True, None
-            print(f"[Supabase create_or_update_user Error] HTTP {check_resp.status_code}")
+            print(f"[Supabase create_or_update_user Error] HTTP {check_resp.status_code}: {check_resp.text}")
             return False, "service_error"
         except Exception as e:
             print(f"[Supabase create_or_update_user Connection Error]: {e}")
             return False, "connection_error"
 
-    # Fallback to SQLite
+    # Fallback to SQLite (local development only)
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         cursor = conn.cursor()
