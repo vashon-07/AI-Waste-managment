@@ -217,8 +217,12 @@ def catch_all(path):
     target = request.args.get("__path") or path or ""
     target = target.strip("/").lower()
 
+    # 0. Auth Health Diagnostic Route
+    if target in ("auth-health", "api/auth-health"):
+        return jsonify(check_supabase_health())
+
     # 1. Report Waste Page
-    if target in ("report", "api/report"):
+    elif target in ("report", "api/report"):
         citizen = get_current_citizen()
         return render_template("report.html", citizen=citizen)
 
