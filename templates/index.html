@@ -17,7 +17,12 @@
         <nav>
             <a href="/" class="active">Home</a>
             <a href="/report">Report Waste</a>
+            {% if citizen %}
+            <a href="/citizen-dashboard">👤 My Dashboard</a>
+            <a href="/citizen-logout" class="login-nav-btn" style="background: #e24a4a; padding: 6px 14px; font-size: 13px;">Sign Out 🚪</a>
+            {% else %}
             <a href="/login">Citizen Login</a>
+            {% endif %}
             <a href="/officer-login" class="login-nav-btn officer-btn">🏛️ Officer Portal</a>
         </nav>
     </header>

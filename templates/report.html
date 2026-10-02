@@ -24,7 +24,12 @@
         <nav>
             <a href="/">Home</a>
             <a href="/report" class="active">Report Waste</a>
+            {% if citizen %}
+            <a href="/citizen-dashboard">👤 My Dashboard</a>
+            <a href="/citizen-logout" class="login-nav-btn" style="background: #e24a4a; padding: 6px 14px; font-size: 13px;">Sign Out 🚪</a>
+            {% else %}
             <a href="/login">Citizen Login</a>
+            {% endif %}
             <a href="/officer-login" class="login-nav-btn officer-btn">🏛️ Officer Portal</a>
         </nav>
     </header>
@@ -62,8 +67,9 @@
             {% if success_message %}
             <div style="background: #e8f5eb; color: #1e7042; padding: 18px 24px; border-radius: 14px; border: 1.5px solid #2e8b57; margin-bottom: 24px; font-weight: 600; font-size: 15px; text-align: center; box-shadow: 0 4px 15px rgba(46,139,87,0.12);">
                 {{ success_message }}
-                <div style="margin-top: 10px;">
-                    <a href="/officer-dashboard" style="color: #162a1e; font-size: 13px; text-decoration: underline; margin-right: 15px;">🏛️ View in Officer Portal</a>
+                <div style="margin-top: 10px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    <a href="/citizen-dashboard" style="color: #1e5a37; font-size: 13px; text-decoration: underline; font-weight: 700;">📋 View My Contributions Dashboard</a>
+                    <a href="/officer-dashboard" style="color: #162a1e; font-size: 13px; text-decoration: underline;">🏛️ View in Officer Portal</a>
                     <a href="/report" style="color: #2e8b57; font-size: 13px; text-decoration: underline;">Submit Another Report</a>
                 </div>
             </div>
@@ -258,6 +264,7 @@
                         type="text" 
                         id="reporter_name" 
                         name="reporter_name" 
+                        value="{{ citizen.name if citizen else '' }}"
                         placeholder="Enter your name (e.g. Ramesh Kumar)" 
                         style="width: 100%; padding: 14px 16px; border: 1px solid #dce5de; border-radius: 12px; font-size: 15px; outline: none; margin-bottom: 12px;"
                         required
@@ -270,6 +277,7 @@
                         type="tel" 
                         id="reporter_phone" 
                         name="reporter_phone" 
+                        value="{{ citizen.phone if citizen else '' }}"
                         placeholder="10-digit number (for cleanup updates)" 
                         pattern="[0-9]{10}" 
                         maxlength="10" 

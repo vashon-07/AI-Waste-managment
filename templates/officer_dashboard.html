@@ -8,6 +8,73 @@
 
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        .filter-pills-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .filter-pill-btn {
+            background: #ffffff;
+            border: 1.5px solid #dce8df;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4b5563;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .filter-pill-btn:hover {
+            border-color: #2e8b57;
+            color: #2e8b57;
+            background: #f7fbf8;
+        }
+        .filter-pill-btn.active {
+            background: #2e8b57;
+            border-color: #2e8b57;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(46, 139, 87, 0.25);
+        }
+        .pill-count {
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .filter-pill-btn.active .pill-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
+        .resolved-retention-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+            font-weight: 500;
+        }
+        .officer-retention-banner {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 13.5px;
+            color: #166534;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    </style>
 </head>
 
 <body class="dashboard-body">
@@ -47,7 +114,7 @@
             <div class="stat-card total">
                 <div class="stat-icon">📋</div>
                 <div class="stat-info">
-                    <span class="stat-value">{{ reports|length }}</span>
+                    <span class="stat-value">{{ stats.total if stats else reports|length }}</span>
                     <span class="stat-label">Total Submissions</span>
                 </div>
             </div>
@@ -55,7 +122,7 @@
             <div class="stat-card pending">
                 <div class="stat-icon">⏳</div>
                 <div class="stat-info">
-                    <span class="stat-value">{{ reports|selectattr('status', 'equalto', 'Pending')|list|length }}</span>
+                    <span class="stat-value">{{ stats.pending if stats else (reports|selectattr('status', 'equalto', 'Pending')|list|length) }}</span>
                     <span class="stat-label">Pending Action</span>
                 </div>
             </div>
@@ -63,25 +130,33 @@
             <div class="stat-card progress">
                 <div class="stat-icon">🚧</div>
                 <div class="stat-info">
-                    <span class="stat-value">{{ reports|selectattr('status', 'equalto', 'In Progress')|list|length }}</span>
-                    <span class="stat-label">In Progress</span>
+                    <span class="stat-value">{{ stats.in_progress if stats else (reports|selectattr('status', 'in', ['Under Inspection', 'In Progress'])|list|length) }}</span>
+                    <span class="stat-label">In Progress / Under Inspection</span>
                 </div>
             </div>
 
             <div class="stat-card resolved">
                 <div class="stat-icon">✅</div>
                 <div class="stat-info">
-                    <span class="stat-value">{{ reports|selectattr('status', 'equalto', 'Resolved')|list|length }}</span>
+                    <span class="stat-value">{{ stats.resolved if stats else (reports|selectattr('status', 'in', ['Cleaned & Resolved', 'Resolved'])|list|length) }}</span>
                     <span class="stat-label">Cleaned & Resolved</span>
                 </div>
             </div>
         </section>
 
+        <!-- Retention Policy Banner -->
+        <div class="officer-retention-banner">
+            <span>🛡️</span>
+            <div>
+                <strong>Active View & 10-Day Retention:</strong> By default, this portal displays only active/unresolved reports. Resolved reports are kept in the database for 10 days post-resolution and can be reviewed anytime via the <strong>Cleaned & Resolved</strong> filter.
+            </div>
+        </div>
+
         <!-- Master Map Section -->
         <section class="dashboard-map-section">
             <div class="section-title-row">
                 <h2>🗺️ Municipal Waste Hotspot Map</h2>
-                <small>Showing all geolocation pins submitted by citizens</small>
+                <small>Showing geolocation pins for filtered citizen submissions</small>
             </div>
             <div id="officer-map" class="officer-map-view"></div>
         </section>
@@ -89,6 +164,26 @@
         <!-- Reports Feed & Filter Bar -->
         <section class="reports-section">
             
+            <!-- Quick Status Filter Pills -->
+            {% set p_count = stats.pending if stats else (reports|selectattr('status', 'equalto', 'Pending')|list|length) %}
+            {% set ip_count = stats.in_progress if stats else (reports|selectattr('status', 'in', ['Under Inspection', 'In Progress'])|list|length) %}
+            {% set r_count = stats.resolved if stats else (reports|selectattr('status', 'in', ['Cleaned & Resolved', 'Resolved'])|list|length) %}
+            
+            <div class="filter-pills-bar" id="officer-filter-pills">
+                <button type="button" class="filter-pill-btn active" data-filter="active">
+                    ⚡ All Active <span class="pill-count">{{ p_count + ip_count }}</span>
+                </button>
+                <button type="button" class="filter-pill-btn" data-filter="Pending">
+                    ⏳ Pending <span class="pill-count">{{ p_count }}</span>
+                </button>
+                <button type="button" class="filter-pill-btn" data-filter="Under Inspection">
+                    🚧 Under Inspection / In Progress <span class="pill-count">{{ ip_count }}</span>
+                </button>
+                <button type="button" class="filter-pill-btn" data-filter="Cleaned & Resolved">
+                    ✅ Cleaned & Resolved <span class="pill-count">{{ r_count }}</span>
+                </button>
+            </div>
+
             <div class="feed-controls">
                 <div class="search-box">
                     <span>🔍</span>
@@ -96,12 +191,12 @@
                 </div>
 
                 <div class="filter-group">
-                    <label for="status-filter">Status:</label>
+                    <label for="status-filter">Status Filter:</label>
                     <select id="status-filter">
-                        <option value="all">All Statuses</option>
-                        <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
+                        <option value="active" selected>⚡ All Active (Pending + Under Inspection)</option>
+                        <option value="Pending">⏳ Pending</option>
+                        <option value="Under Inspection">🚧 Under Inspection / In Progress</option>
+                        <option value="Cleaned & Resolved">✅ Cleaned & Resolved</option>
                     </select>
 
                     <label for="severity-filter">Priority:</label>
@@ -119,13 +214,17 @@
             {% if reports %}
             <div class="reports-grid" id="reports-grid">
                 {% for r in reports %}
-                <div class="report-card status-{{ r.status|lower|replace(' ', '-') }}" 
+                {% set r_norm = 'Cleaned & Resolved' if r.status in ('Cleaned & Resolved', 'Resolved') else ('Under Inspection' if r.status in ('Under Inspection', 'In Progress') else 'Pending') %}
+                <div class="report-card status-{{ r_norm|lower|replace(' ', '-') }}" 
+                     data-id="{{ r.id }}"
                      data-name="{{ r.reporter_name or 'Citizen' }}" 
                      data-phone="{{ r.reporter_phone or '' }}"
                      data-address="{{ r.address or '' }}"
+                     data-status-norm="{{ r_norm }}"
                      data-status="{{ r.status }}" 
                      data-severity="{{ r.severity }}"
                      data-type="{{ r.waste_type }}"
+                     style="display: flex;"
                 >
                     <!-- Image Box -->
                     <div class="card-image-box">
@@ -150,7 +249,13 @@
 
                         <div class="card-header-row">
                             <span class="report-id">#WW-{{ r.id }}</span>
-                            <span class="badge-status status-badge-{{ r.status|lower|replace(' ', '-') }}">{{ r.status }}</span>
+                            {% if r_norm == 'Cleaned & Resolved' %}
+                            <span class="badge-status" style="background: #eaf8ee; color: #2e8b57; border: 1px solid #c2e9cb;">✅ Cleaned & Resolved</span>
+                            {% elif r_norm == 'Under Inspection' %}
+                            <span class="badge-status" style="background: #fff8eb; color: #d97706; border: 1px solid #fde68a;">🚧 Under Inspection</span>
+                            {% else %}
+                            <span class="badge-status" style="background: #fff2e5; color: #ea580c; border: 1px solid #fed7aa;">⏳ Pending</span>
+                            {% endif %}
                         </div>
 
                         <!-- Citizen Info Section (User Name & Contact) -->
@@ -193,15 +298,22 @@
                             {% endif %}
                         </div>
 
+                        <!-- Retention info if resolved -->
+                        {% if r_norm == 'Cleaned & Resolved' %}
+                        <div class="resolved-retention-badge">
+                            ✅ <strong>Cleaned & Resolved</strong>{% if r.resolved_at %} on {{ r.resolved_at }}{% endif %} (10-day retention active)
+                        </div>
+                        {% endif %}
+
                         <!-- Status Action Controls for Officer -->
-                        <div class="officer-actions">
-                            <label>Update Action Status:</label>
+                        <div class="officer-actions" style="margin-top: 14px;">
+                            <label><strong>Update Action Status:</strong></label>
                             <form action="/update-status" method="POST" class="status-update-form">
                                 <input type="hidden" name="report_id" value="{{ r.id }}">
                                 <select name="new_status" onchange="this.form.submit()" class="status-select">
-                                    <option value="Pending" {% if r.status == 'Pending' %}selected{% endif %}>⏳ Pending Inspection</option>
-                                    <option value="In Progress" {% if r.status == 'In Progress' %}selected{% endif %}>🚧 Crew Dispatched (In Progress)</option>
-                                    <option value="Resolved" {% if r.status == 'Resolved' %}selected{% endif %}>✅ Cleaned & Resolved</option>
+                                    <option value="Pending" {% if r_norm == 'Pending' %}selected{% endif %}>⏳ Pending</option>
+                                    <option value="Under Inspection" {% if r_norm == 'Under Inspection' %}selected{% endif %}>🚧 Under Inspection / In Progress</option>
+                                    <option value="Cleaned & Resolved" {% if r_norm == 'Cleaned & Resolved' %}selected{% endif %}>✅ Cleaned & Resolved</option>
                                 </select>
                             </form>
                         </div>
@@ -210,6 +322,14 @@
                 </div>
                 {% endfor %}
             </div>
+
+            <!-- Empty Filter State -->
+            <div id="officer-filter-empty" class="empty-state" style="display: none; margin-top: 25px;">
+                <div class="empty-icon">📁</div>
+                <h3 id="officer-empty-title">No Reports In This View</h3>
+                <p id="officer-empty-desc">No reports match the current filter selection.</p>
+            </div>
+
             {% else %}
             <div class="empty-state">
                 <div class="empty-icon">🎉</div>
@@ -261,6 +381,7 @@
         const reportsData = [
             {% for r in reports %}
                 {% if r.latitude and r.longitude %}
+                {% set r_norm = 'Cleaned & Resolved' if r.status in ('Cleaned & Resolved', 'Resolved') else ('Under Inspection' if r.status in ('Under Inspection', 'In Progress') else 'Pending') %}
                 {
                     id: {{ r.id }},
                     name: "{{ r.reporter_name or 'Citizen' }}",
@@ -270,6 +391,7 @@
                     lng: {{ r.longitude }},
                     waste_type: "{{ r.waste_type or 'General' }}",
                     severity: "{{ r.severity or 'Medium' }}",
+                    status_norm: "{{ r_norm }}",
                     status: "{{ r.status }}",
                     image: "{{ r.image_path or '' }}"
                 },
@@ -288,11 +410,12 @@
         }).addTo(map);
 
         const markersGroup = L.featureGroup().addTo(map);
+        const markerMap = {};
 
         reportsData.forEach(r => {
-            let color = "#d93838"; // red
-            if (r.status === "Resolved") color = "#2e8b57"; // green
-            else if (r.status === "In Progress") color = "#e67e22"; // orange
+            let color = "#d93838"; // red for Pending
+            if (r.status_norm === "Cleaned & Resolved") color = "#2e8b57"; // green
+            else if (r.status_norm === "Under Inspection") color = "#e67e22"; // orange
 
             const markerHtml = `
                 <div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
@@ -307,7 +430,7 @@
                 iconAnchor: [13, 13]
             });
 
-            const marker = L.marker([r.lat, r.lng], { icon: customIcon }).addTo(markersGroup);
+            const marker = L.marker([r.lat, r.lng], { icon: customIcon });
             
             const popupContent = `
                 <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 200px;">
@@ -315,53 +438,155 @@
                     <strong>👤 Reporter:</strong> ${r.name}<br>
                     <strong>📱 Phone:</strong> ${r.phone || 'N/A'}<br>
                     <strong>🏷️ Waste:</strong> ${r.waste_type} (${r.severity})<br>
-                    <strong>Status:</strong> <b>${r.status}</b><br>
+                    <strong>Status:</strong> <b>${r.status_norm}</b><br>
                     <p style="margin: 6px 0 0; font-size: 11px; color: #666;">${r.address}</p>
                 </div>
             `;
 
             marker.bindPopup(popupContent);
+            markerMap[r.id] = { marker: marker, data: r };
         });
-
-        if (reportsData.length > 1) {
-            map.fitBounds(markersGroup.getBounds().pad(0.1));
-        }
 
         // --- Client-Side Search & Filter Logic ---
         const searchInput = document.getElementById("report-search");
-        const statusFilter = document.getElementById("status-filter");
-        const severityFilter = document.getElementById("severity-filter");
-        const reportCards = document.querySelectorAll(".report-card");
+        const statusFilterSelect = document.getElementById("status-filter");
+        const severityFilterSelect = document.getElementById("severity-filter");
+        const filterPillBtns = document.querySelectorAll(".filter-pill-btn");
+        const reportCards = document.querySelectorAll("#reports-grid .report-card");
+        const emptyStateDiv = document.getElementById("officer-filter-empty");
+        const emptyTitle = document.getElementById("officer-empty-title");
+        const emptyDesc = document.getElementById("officer-empty-desc");
+
+        // Current active filter defaults to 'active' (Pending + Under Inspection, excluding Cleaned & Resolved)
+        let activeStatusFilter = "active";
+
+        function updateMapMarkers() {
+            markersGroup.clearLayers();
+            const visibleIds = [];
+
+            reportCards.forEach(card => {
+                if (card.style.display !== "none") {
+                    const cardId = parseInt(card.getAttribute("data-id"));
+                    if (cardId && markerMap[cardId]) {
+                        markersGroup.addLayer(markerMap[cardId].marker);
+                        visibleIds.push(cardId);
+                    }
+                }
+            });
+
+            if (visibleIds.length > 0) {
+                map.fitBounds(markersGroup.getBounds().pad(0.15));
+            }
+        }
 
         function filterReports() {
             const query = (searchInput.value || "").toLowerCase();
-            const statusVal = statusFilter.value;
-            const severityVal = severityFilter.value;
+            const statusVal = activeStatusFilter;
+            const severityVal = severityFilterSelect.value;
+
+            let visibleCount = 0;
 
             reportCards.forEach(card => {
                 const name = (card.getAttribute("data-name") || "").toLowerCase();
                 const phone = (card.getAttribute("data-phone") || "").toLowerCase();
                 const address = (card.getAttribute("data-address") || "").toLowerCase();
                 const wasteType = (card.getAttribute("data-type") || "").toLowerCase();
-                const status = card.getAttribute("data-status");
+                const normStatus = card.getAttribute("data-status-norm");
                 const severity = card.getAttribute("data-severity");
 
                 const matchesQuery = !query || name.includes(query) || phone.includes(query) || address.includes(query) || wasteType.includes(query);
-                const matchesStatus = (statusVal === "all") || (status === statusVal);
+                
+                // DEFAULT / FILTER BEHAVIOUR:
+                // 'active': Show Pending + Under Inspection, exclude Cleaned & Resolved
+                // 'Pending': Show only Pending
+                // 'Under Inspection': Show only Under Inspection
+                // 'Cleaned & Resolved': Show only Cleaned & Resolved
+                let matchesStatus = false;
+                if (statusVal === "active") {
+                    matchesStatus = (normStatus === "Pending" || normStatus === "Under Inspection");
+                } else if (statusVal === "Pending") {
+                    matchesStatus = (normStatus === "Pending");
+                } else if (statusVal === "Under Inspection") {
+                    matchesStatus = (normStatus === "Under Inspection");
+                } else if (statusVal === "Cleaned & Resolved") {
+                    matchesStatus = (normStatus === "Cleaned & Resolved");
+                }
+
                 const matchesSeverity = (severityVal === "all") || (severity === severityVal);
 
                 if (matchesQuery && matchesStatus && matchesSeverity) {
                     card.style.display = "flex";
+                    visibleCount++;
                 } else {
                     card.style.display = "none";
                 }
             });
+
+            if (emptyStateDiv) {
+                if (visibleCount === 0 && reportCards.length > 0) {
+                    emptyStateDiv.style.display = "block";
+                    if (statusVal === "Cleaned & Resolved") {
+                        emptyTitle.textContent = "No Cleaned & Resolved Reports";
+                        emptyDesc.textContent = "No reports have been marked as resolved within the current 10-day retention window.";
+                    } else if (statusVal === "active") {
+                        emptyTitle.textContent = "All Active Issues Handled!";
+                        emptyDesc.textContent = "There are no pending or under-inspection reports requiring field action.";
+                    } else {
+                        emptyTitle.textContent = "No Reports Found";
+                        emptyDesc.textContent = "No reports match the selected filters or search query.";
+                    }
+                } else {
+                    emptyStateDiv.style.display = "none";
+                }
+            }
+
+            updateMapMarkers();
+        }
+
+        // Pill buttons click handler
+        filterPillBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const targetFilter = btn.getAttribute("data-filter");
+                activeStatusFilter = targetFilter;
+
+                filterPillBtns.forEach(b => {
+                    if (b.getAttribute("data-filter") === targetFilter) {
+                        b.classList.add("active");
+                    } else {
+                        b.classList.remove("active");
+                    }
+                });
+
+                if (statusFilterSelect) {
+                    statusFilterSelect.value = targetFilter;
+                }
+
+                filterReports();
+            });
+        });
+
+        // Dropdown change handler
+        if (statusFilterSelect) {
+            statusFilterSelect.addEventListener("change", () => {
+                activeStatusFilter = statusFilterSelect.value;
+                filterPillBtns.forEach(b => {
+                    if (b.getAttribute("data-filter") === activeStatusFilter) {
+                        b.classList.add("active");
+                    } else {
+                        b.classList.remove("active");
+                    }
+                });
+                filterReports();
+            });
         }
 
         searchInput.addEventListener("input", filterReports);
-        statusFilter.addEventListener("change", filterReports);
-        severityFilter.addEventListener("change", filterReports);
+        severityFilterSelect.addEventListener("change", filterReports);
+
+        // Run filter immediately so DEFAULT view shows ONLY active reports (hides resolved)
+        filterReports();
     </script>
 
 </body>
 </html>
+

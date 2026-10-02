@@ -1708,4 +1708,87 @@ textarea:focus {
     margin-bottom: 12px;
 }
 
+/* Quick Status Filter Pills & Retention Badges */
+.filter-pills-bar,
+.filter-tabs-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.filter-pill-btn,
+.filter-tab-btn {
+    background: #ffffff;
+    border: 1.5px solid #dce8df;
+    padding: 10px 20px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-pill-btn:hover,
+.filter-tab-btn:hover {
+    border-color: #2e8b57;
+    color: #2e8b57;
+    background: #f7fbf8;
+}
+
+.filter-pill-btn.active,
+.filter-tab-btn.active {
+    background: #2e8b57;
+    border-color: #2e8b57;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(46, 139, 87, 0.25);
+}
+
+.pill-count,
+.filter-badge-count {
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.filter-pill-btn.active .pill-count,
+.filter-tab-btn.active .filter-badge-count {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
+.resolved-retention-badge,
+.resolved-date-tag {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+    font-weight: 500;
+}
+
+.officer-retention-banner,
+.report-retention-notice {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 13.5px;
+    color: #166534;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+
 

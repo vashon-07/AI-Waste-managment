@@ -1,10 +1,21 @@
-from flask import Flask, render_template, request, redirect, send_from_directory, url_for, jsonify, make_response
+from flask import Flask, render_template, request, redirect, send_from_directory, url_for, jsonify, make_response, session
 import sqlite3
 import os
 import base64
 import re
+from datetime import datetime
 from ai.predict import predict_waste
-from cloud_db import get_all_reports, insert_report, update_report_status
+from cloud_db import (
+    get_all_reports,
+    get_citizen_reports,
+    insert_report,
+    update_report_status,
+    get_user_by_credentials,
+    get_user_by_phone,
+    create_or_update_user,
+    cleanup_expired_reports,
+    init_cloud_db
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -14,6 +25,7 @@ app = Flask(
     static_url_path="/static",
     template_folder=os.path.join(BASE_DIR, "templates")
 )
+app.secret_key = os.environ.get("SECRET_KEY", "wastewatch-session-secret-key-2026")
 
 
 @app.route("/static/<path:filename>")
@@ -64,11 +76,16 @@ def init_db():
             severity TEXT,
             priority_score REAL,
             status TEXT DEFAULT 'Pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP
         )
     """)
 
     # Attempt migration if older columns exist
+    try:
+        cursor.execute("ALTER TABLE reports ADD COLUMN resolved_at TIMESTAMP")
+    except Exception:
+        pass
     try:
         cursor.execute("ALTER TABLE reports ADD COLUMN reporter_name TEXT")
     except Exception:
@@ -81,6 +98,19 @@ def init_db():
         cursor.execute("ALTER TABLE reports ADD COLUMN raw_label TEXT")
     except Exception:
         pass
+
+    # Ensure users table exists
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT UNIQUE NOT NULL,
+            email TEXT,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'citizen',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     # Seed sample citizen submissions if table is currently empty
     cursor.execute("SELECT COUNT(*) FROM reports")
@@ -95,12 +125,37 @@ def init_db():
             ('Anil Verma', '9988776655', 'https://images.unsplash.com/photo-1595278069441-2cf29f8005a4?auto=format&fit=crop&w=600&q=80', 'Hazardous chemicals and medical discard in open vacant plot.', 17.7042, 83.2975, 'MVP Colony, Sector 2, Visakhapatnam', 'Hazardous', 'Critical', 96.0, 'Pending')
         """)
 
+    # Seed sample citizen accounts
+    cursor.execute("SELECT COUNT(*) FROM users")
+    user_count = cursor.fetchone()[0]
+    if user_count == 0:
+        cursor.execute("""
+            INSERT OR IGNORE INTO users (name, phone, email, password, role)
+            VALUES 
+            ('Rahul Sharma', '9876543210', 'rahul@gmail.com', 'Password@123', 'citizen'),
+            ('Priya Patel', '9812345678', 'priya@gmail.com', 'Password@123', 'citizen'),
+            ('Anil Verma', '9988776655', 'anil@gmail.com', 'Password@123', 'citizen')
+        """)
+
     connection.commit()
     connection.close()
+    init_cloud_db()
 
 
 # Ensure DB schema is initialized
 init_db()
+
+
+def get_current_citizen():
+    """Helper to retrieve the authenticated citizen from session or secure cookie."""
+    phone = session.get("citizen_phone") or request.cookies.get("citizen_phone")
+    name = session.get("citizen_name") or request.cookies.get("citizen_name")
+    if phone:
+        user = get_user_by_phone(phone)
+        if user:
+            return user
+        return {"name": name or "Citizen", "phone": phone, "role": "citizen"}
+    return None
 
 
 def analyze_waste_ai(description, filename=""):
@@ -162,10 +217,15 @@ def catch_all(path):
 
     # 1. Report Waste Page
     if target in ("report", "api/report"):
-        return render_template("report.html")
+        citizen = get_current_citizen()
+        return render_template("report.html", citizen=citizen)
 
     # 2. Citizen Login & Registration
     elif target in ("login", "api/login", "register", "api/register"):
+        citizen = get_current_citizen()
+        if request.method == "GET" and citizen:
+            return redirect("/citizen-dashboard")
+
         if request.method == "POST":
             action = request.form.get("action", "login")
             role = request.form.get("role", "Citizen")
@@ -173,6 +233,7 @@ def catch_all(path):
             if action == "register":
                 name = request.form.get("name", "User").strip()
                 phone = request.form.get("phone", "").strip()
+                email = request.form.get("email", "").strip().lower()
                 password = request.form.get("password", "")
                 confirm_password = request.form.get("confirm_password", "")
 
@@ -195,23 +256,86 @@ def catch_all(path):
                 if password != confirm_password:
                     return render_template("login.html", message="Passwords do not match. Please try again.", is_error=True)
 
-                return render_template("login.html", message=f"✓ Account created successfully! Welcome, {name} ({role.capitalize()}).", is_error=False)
+                create_or_update_user(name, phone, email, password, role)
+                session["citizen_phone"] = phone
+                session["citizen_name"] = name
+
+                resp = make_response(redirect("/citizen-dashboard"))
+                resp.set_cookie("citizen_phone", phone, max_age=86400 * 30, httponly=True, samesite="Lax")
+                resp.set_cookie("citizen_name", name, max_age=86400 * 30, httponly=True, samesite="Lax")
+                return resp
 
             else:
-                email = request.form.get("email", "")
-                user_name = email.split("@")[0] if "@" in email else email
-                return render_template("login.html", message=f"✓ Signed in successfully as {role.capitalize()} ({user_name})", is_error=False)
+                identifier = request.form.get("email", "").strip()
+                password = request.form.get("password", "")
+
+                user = get_user_by_credentials(identifier, password)
+                if not user and identifier.isdigit() and len(identifier) == 10:
+                    user = get_user_by_phone(identifier)
+                    if user and user.get("password") != password:
+                        user = None
+
+                if user:
+                    session["citizen_phone"] = user["phone"]
+                    session["citizen_name"] = user["name"]
+
+                    resp = make_response(redirect("/citizen-dashboard"))
+                    resp.set_cookie("citizen_phone", user["phone"], max_age=86400 * 30, httponly=True, samesite="Lax")
+                    resp.set_cookie("citizen_name", user["name"], max_age=86400 * 30, httponly=True, samesite="Lax")
+                    return resp
+                else:
+                    return render_template("login.html", message="Invalid email/mobile number or password. Please try again.", is_error=True)
 
         return render_template("login.html")
 
-    # 3. Dedicated Municipal Officer Login (Restricted to authorized Officer accounts)
+    # 3. Citizen Dashboard (Personal report history & statistics)
+    elif target in ("citizen-dashboard", "citizen/dashboard", "account", "api/citizen-dashboard", "api/account"):
+        citizen = get_current_citizen()
+        if not citizen:
+            return redirect("/login")
+
+        citizen_reports = get_citizen_reports(citizen.get("phone"), citizen.get("name"))
+
+        total_count = len(citizen_reports)
+        pending_count = sum(1 for r in citizen_reports if r.get("status") == "Pending")
+        in_progress_count = sum(1 for r in citizen_reports if r.get("status") in ("Under Inspection", "In Progress"))
+        resolved_count = sum(1 for r in citizen_reports if r.get("status") in ("Cleaned & Resolved", "Resolved"))
+
+        stats = {
+            "total": total_count,
+            "pending": pending_count,
+            "in_progress": in_progress_count,
+            "resolved": resolved_count
+        }
+
+        resp = make_response(render_template(
+            "citizen_dashboard.html",
+            citizen=citizen,
+            reports=citizen_reports,
+            stats=stats
+        ))
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
+
+    # 4. Citizen Logout
+    elif target in ("citizen-logout", "logout", "citizen/logout"):
+        session.pop("citizen_phone", None)
+        session.pop("citizen_name", None)
+        session.pop("citizen_email", None)
+        resp = make_response(redirect("/login"))
+        resp.delete_cookie("citizen_phone")
+        resp.delete_cookie("citizen_name")
+        return resp
+
+    # 5. Dedicated Municipal Officer Login
     elif target in ("officer-login", "officer/login", "api/officer-login", "api/officer/login"):
         if request.method == "POST":
             officer_id = request.form.get("officer_id", "").strip().lower()
             officer_password = request.form.get("officer_password", "").strip()
             selected_ward = request.form.get("ward", "All Wards")
 
-            # Validate against official municipal staff accounts
             if officer_id in OFFICER_ACCOUNTS and OFFICER_ACCOUNTS[officer_id]["password"] == officer_password:
                 account_info = OFFICER_ACCOUNTS[officer_id]
                 officer_name = account_info["name"]
@@ -226,17 +350,29 @@ def catch_all(path):
 
         return render_template("officer_login.html")
 
-
-    # 4. Municipal Officer Dashboard (View all photos, locations & names)
+    # 6. Municipal Officer Dashboard
     elif target in ("officer-dashboard", "officer/dashboard", "api/officer-dashboard", "api/officer/dashboard"):
         officer_name = request.args.get("officer_name", "Officer In-Charge")
         officer_ward = request.args.get("ward", "All Wards (Central Command)")
 
         reports = get_all_reports()
 
+        total_count = len(reports)
+        pending_count = sum(1 for r in reports if r.get("status") == "Pending")
+        in_progress_count = sum(1 for r in reports if r.get("status") in ("Under Inspection", "In Progress"))
+        resolved_count = sum(1 for r in reports if r.get("status") in ("Cleaned & Resolved", "Resolved"))
+
+        stats = {
+            "total": total_count,
+            "pending": pending_count,
+            "in_progress": in_progress_count,
+            "resolved": resolved_count
+        }
+
         resp = make_response(render_template(
             "officer_dashboard.html",
             reports=reports,
+            stats=stats,
             officer_name=officer_name,
             officer_ward=officer_ward
         ))
@@ -245,30 +381,32 @@ def catch_all(path):
         resp.headers["Expires"] = "0"
         return resp
 
-    # 5. Officer Logout
+    # 7. Officer Logout
     elif target in ("officer-logout", "officer/logout"):
         return redirect("/officer-login")
 
-    # 6. Status Update Action
+    # 8. Status Update Action
     elif target in ("update-status", "api/update-status") and request.method == "POST":
         return update_status()
 
-    # 7. Image Classification API
+    # 9. Image Classification API
     elif target in ("classify", "api/classify") and request.method == "POST":
         return api_classify()
 
-    # 8. Citizen Submit Report Action
+    # 10. Citizen Submit Report Action
     elif target in ("submit-report", "api/submit-report") and request.method == "POST":
         return submit_report()
 
-    # 9. Static Fallbacks
+    # 11. Static Fallbacks
     elif target.startswith("static/"):
         return serve_static(target[7:])
     elif target.startswith("css/"):
         return serve_css(target[4:])
 
     # Default Home Page
-    return render_template("index.html")
+    citizen = get_current_citizen()
+    return render_template("index.html", citizen=citizen)
+
 
 
 @app.route("/api/classify", methods=["POST"])
@@ -374,6 +512,13 @@ def submit_report():
     if not waste_type or not severity or priority_score is None:
         waste_type, severity, priority_score = analyze_waste_ai(description, image.filename if image else "")
 
+    citizen = get_current_citizen()
+    if citizen:
+        if not reporter_name or reporter_name == "Anonymous Citizen":
+            reporter_name = citizen.get("name", "Anonymous Citizen")
+        if not reporter_phone:
+            reporter_phone = citizen.get("phone", "")
+
     insert_report({
         "reporter_name": reporter_name,
         "reporter_phone": reporter_phone,
@@ -390,8 +535,47 @@ def submit_report():
 
     return render_template(
         "report.html",
+        citizen=citizen,
         success_message=f"🎉 Report submitted successfully! AI identified: {waste_type} (Priority: {severity}). Assigned to Municipal Field Officers."
     )
+
+
+@app.route("/citizen-dashboard")
+def citizen_dashboard():
+    citizen = get_current_citizen()
+    if not citizen:
+        return redirect("/login")
+    citizen_reports = get_citizen_reports(citizen.get("phone"), citizen.get("name"))
+    total_count = len(citizen_reports)
+    pending_count = sum(1 for r in citizen_reports if r.get("status") == "Pending")
+    in_progress_count = sum(1 for r in citizen_reports if r.get("status") in ("Under Inspection", "In Progress"))
+    resolved_count = sum(1 for r in citizen_reports if r.get("status") in ("Cleaned & Resolved", "Resolved"))
+    stats = {
+        "total": total_count,
+        "pending": pending_count,
+        "in_progress": in_progress_count,
+        "resolved": resolved_count
+    }
+    resp = make_response(render_template(
+        "citizen_dashboard.html",
+        citizen=citizen,
+        reports=citizen_reports,
+        stats=stats
+    ))
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
+
+
+@app.route("/citizen-logout")
+@app.route("/logout")
+def citizen_logout():
+    session.pop("citizen_phone", None)
+    session.pop("citizen_name", None)
+    session.pop("citizen_email", None)
+    resp = make_response(redirect("/login"))
+    resp.delete_cookie("citizen_phone")
+    resp.delete_cookie("citizen_name")
+    return resp
 
 
 @app.route("/update-status", methods=["POST"])
@@ -403,6 +587,7 @@ def update_status():
         update_report_status(report_id, new_status)
 
     return redirect("/officer-dashboard")
+
 
 
 if __name__ == "__main__":

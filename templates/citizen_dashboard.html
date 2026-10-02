@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>My Contributions - AI WasteWatch</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .citizen-dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px 80px;
+        }
+
+        .citizen-profile-banner {
+            background: linear-gradient(135deg, #1e5a37, #2e8b57);
+            border-radius: 20px;
+            padding: 32px 36px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(46, 139, 87, 0.2);
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .profile-greeting h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            color: white;
+        }
+
+        .profile-greeting p {
+            font-size: 15px;
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+
+        .profile-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-report-new {
+            background: #ffffff;
+            color: #1e5a37;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+
+        .btn-report-new:hover {
+            background: #f0fdf4;
+            transform: translateY(-2px);
+        }
+
+        .filter-tabs-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tab-btn {
+            background: #ffffff;
+            border: 1.5px solid #dce8df;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4b5563;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-tab-btn:hover {
+            border-color: #2e8b57;
+            color: #2e8b57;
+            background: #f7fbf8;
+        }
+
+        .filter-tab-btn.active {
+            background: #2e8b57;
+            border-color: #2e8b57;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(46, 139, 87, 0.25);
+        }
+
+        .filter-badge-count {
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .filter-tab-btn.active .filter-badge-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
+
+        .report-retention-notice {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 13.5px;
+            color: #166534;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .resolved-date-tag {
+            font-size: 12px;
+            color: #047857;
+            background: #ecfdf5;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-top: 6px;
+            border: 1px solid #a7f3d0;
+        }
+
+        .nav-user-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f0fdf4;
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid #d1fae5;
+            font-size: 14px;
+            font-weight: 600;
+            color: #065f46;
+        }
+    </style>
+</head>
+
+<body class="dashboard-body">
+
+    <!-- Top Navigation Bar -->
+    <header>
+        <a href="/" class="logo-link"><div class="logo">♻️ AI WasteWatch</div></a>
+
+        <nav>
+            <a href="/">Home</a>
+            <a href="/report">Report Waste</a>
+            <a href="/citizen-dashboard" class="active">My Dashboard</a>
+            <div class="nav-user-badge">
+                <span>👤 {{ citizen.name }}</span>
+            </div>
+            <a href="/citizen-logout" class="login-nav-btn" style="background: #e24a4a;">Sign Out 🚪</a>
+        </nav>
+    </header>
+
+    <main class="citizen-dashboard-container">
+
+        <!-- Citizen Profile Banner -->
+        <div class="citizen-profile-banner">
+            <div class="profile-greeting">
+                <h1>Welcome, {{ citizen.name }}! 👋</h1>
+                <p>Track your environmental contributions, report statuses, and cleanup progress across the city.</p>
+                <div style="margin-top: 8px; font-size: 13px; opacity: 0.85;">
+                    📱 Registered Mobile: <strong>{{ citizen.phone }}</strong>
+                </div>
+            </div>
+            <div class="profile-actions">
+                <a href="/report" class="btn-report-new">📸 Report New Waste</a>
+            </div>
+        </div>
+
+        <!-- Contribution Statistics -->
+        <section class="stats-grid">
+            <div class="stat-card total">
+                <div class="stat-icon">📋</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ stats.total }}</span>
+                    <span class="stat-label">Total Contributions</span>
+                </div>
+            </div>
+
+            <div class="stat-card pending">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ stats.pending }}</span>
+                    <span class="stat-label">Pending</span>
+                </div>
+            </div>
+
+            <div class="stat-card progress">
+                <div class="stat-icon">🚧</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ stats.in_progress }}</span>
+                    <span class="stat-label">Under Inspection</span>
+                </div>
+            </div>
+
+            <div class="stat-card resolved">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ stats.resolved }}</span>
+                    <span class="stat-label">Cleaned & Resolved</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Information Notice -->
+        <div class="report-retention-notice">
+            <span>ℹ️</span>
+            <div>
+                <strong>Active & Retention Policy:</strong> The default view displays your active reports. Reports marked "Cleaned & Resolved" by municipal officers remain viewable under the <strong>Cleaned & Resolved</strong> filter for 10 days after resolution.
+            </div>
+        </div>
+
+        <!-- Section Title & Status Filters -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 16px;">
+            <div>
+                <h2 style="font-size: 22px; color: #15291c;">My Submitted Reports</h2>
+                <p style="font-size: 14px; color: #647569;">All reports personally submitted from your account.</p>
+            </div>
+        </div>
+
+        <!-- Status Filter Tab Buttons -->
+        <div class="filter-tabs-bar" id="citizen-filter-tabs">
+            <button type="button" class="filter-tab-btn active" data-filter="active">
+                ⚡ All Active <span class="filter-badge-count">{{ stats.pending + stats.in_progress }}</span>
+            </button>
+            <button type="button" class="filter-tab-btn" data-filter="Pending">
+                ⏳ Pending <span class="filter-badge-count">{{ stats.pending }}</span>
+            </button>
+            <button type="button" class="filter-tab-btn" data-filter="Under Inspection">
+                🚧 Under Inspection / In Progress <span class="filter-badge-count">{{ stats.in_progress }}</span>
+            </button>
+            <button type="button" class="filter-tab-btn" data-filter="Cleaned & Resolved">
+                ✅ Cleaned & Resolved <span class="filter-badge-count">{{ stats.resolved }}</span>
+            </button>
+        </div>
+
+        <!-- Reports Feed -->
+        {% if reports %}
+        <div class="reports-grid" id="citizen-reports-grid">
+            {% for r in reports %}
+            {% set r_norm = 'Cleaned & Resolved' if r.status in ('Cleaned & Resolved', 'Resolved') else ('Under Inspection' if r.status in ('Under Inspection', 'In Progress') else 'Pending') %}
+            <div class="report-card status-{{ r.status|lower|replace(' ', '-') }}"
+                 data-status-norm="{{ r_norm }}"
+                 data-status-raw="{{ r.status }}"
+                 data-type="{{ r.waste_type }}"
+                 data-address="{{ r.address or '' }}"
+                 style="display: flex;"
+            >
+                <!-- Image Box -->
+                <div class="card-image-box">
+                    {% if r.image_path %}
+                    <img src="{{ r.image_path }}" alt="Reported Waste" class="waste-photo-thumb" onclick="openPhotoModal(this.src, '{{ r.reporter_name or citizen.name }}', '{{ r.address or '' }}')">
+                    <div class="zoom-badge">🔍 Click to View Full Photo</div>
+                    {% else %}
+                    <div class="no-photo-placeholder">
+                        <span>📷</span>
+                        <small>No image attached</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Severity / Priority Badge -->
+                    <div class="badge-priority priority-{{ r.severity|lower }}">
+                        {{ r.severity }} Priority ({{ r.priority_score }}%)
+                    </div>
+                </div>
+
+                <!-- Card Body -->
+                <div class="card-content">
+                    <div class="card-header-row">
+                        <span class="report-id">#WW-{{ r.id }}</span>
+                        {% if r_norm == 'Cleaned & Resolved' %}
+                        <span class="badge-status" style="background: #eaf8ee; color: #2e8b57; border: 1px solid #c2e9cb;">✅ Cleaned & Resolved</span>
+                        {% elif r_norm == 'Under Inspection' %}
+                        <span class="badge-status" style="background: #fff8eb; color: #d97706; border: 1px solid #fde68a;">🚧 Under Inspection</span>
+                        {% else %}
+                        <span class="badge-status" style="background: #fff2e5; color: #ea580c; border: 1px solid #fed7aa;">⏳ Pending</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Submission Time -->
+                    <div style="font-size: 13px; color: #647569; margin-bottom: 10px;">
+                        <strong>📅 Submitted:</strong> {{ r.created_at }}
+                    </div>
+
+                    <!-- Waste Classification -->
+                    <div class="waste-type-tag">
+                        🏷️ <strong>AI Classification:</strong> {{ r.waste_type or 'General Waste' }}
+                    </div>
+
+                    <!-- Description -->
+                    <p class="waste-desc">
+                        "{{ r.description or 'No extra description provided.' }}"
+                    </p>
+
+                    <!-- Location & Directions -->
+                    <div class="location-details-box">
+                        <div class="loc-address">
+                            <strong>📍 Location:</strong> {{ r.address or 'Address not detected' }}
+                        </div>
+                        {% if r.latitude and r.longitude %}
+                        <div class="loc-coords">
+                            <span>🌐 {{ "%.5f"|format(r.latitude) }}, {{ "%.5f"|format(r.longitude) }}</span>
+                            <a href="https://www.google.com/maps/search/?api=1&query={{ r.latitude }},{{ r.longitude }}" target="_blank" class="gmaps-link">
+                                🗺️ Directions
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Officer Status & Resolution Details -->
+                    {% if r_norm == 'Cleaned & Resolved' %}
+                    <div class="resolved-date-tag">
+                        ✅ <strong>Cleaned & Resolved</strong>{% if r.resolved_at %} on {{ r.resolved_at }}{% endif %} • Retained for 10 days
+                    </div>
+                    {% elif r_norm == 'Under Inspection' %}
+                    <div style="font-size: 12.5px; color: #b45309; background: #fffbeb; padding: 6px 12px; border-radius: 6px; border: 1px solid #fef3c7; margin-top: 8px;">
+                        🚧 Field officers have been dispatched and are actively inspecting this site.
+                    </div>
+                    {% else %}
+                    <div style="font-size: 12.5px; color: #c2410c; background: #fff7ed; padding: 6px 12px; border-radius: 6px; border: 1px solid #ffedd5; margin-top: 8px;">
+                        ⏳ Awaiting assignment to municipal field officers.
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Filter-specific Empty State -->
+        <div id="filter-empty-state" class="empty-state" style="display: none; margin-top: 30px;">
+            <div class="empty-icon">📂</div>
+            <h3 id="filter-empty-title">No Reports in this category</h3>
+            <p id="filter-empty-desc">You do not currently have any reports matching this status filter.</p>
+        </div>
+
+        {% else %}
+        <div class="empty-state" style="margin-top: 30px;">
+            <div class="empty-icon">🌱</div>
+            <h3>No Waste Reports Submitted Yet</h3>
+            <p>Help keep your neighborhood clean by reporting overflowing bins, dumped plastic, or hazardous waste.</p>
+            <a href="/report" class="btn-primary" style="margin-top: 15px; display: inline-block;">📸 Submit Your First Report</a>
+        </div>
+        {% endif %}
+
+    </main>
+
+    <!-- Photo Zoom Modal -->
+    <div id="photo-lightbox-modal" class="lightbox-modal" onclick="closePhotoModal(event)">
+        <div class="lightbox-content">
+            <button class="lightbox-close" onclick="closePhotoModal()">&times;</button>
+            <img id="lightbox-img" src="" alt="Waste Photo Full Size">
+            <div class="lightbox-caption">
+                <h4 id="lightbox-reporter"></h4>
+                <p id="lightbox-address"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Photo Lightbox Modal ---
+        const lightboxModal = document.getElementById("photo-lightbox-modal");
+        const lightboxImg = document.getElementById("lightbox-img");
+        const lightboxReporter = document.getElementById("lightbox-reporter");
+        const lightboxAddress = document.getElementById("lightbox-address");
+
+        function openPhotoModal(src, name, address) {
+            lightboxImg.src = src;
+            lightboxReporter.textContent = "Reported by: " + name;
+            lightboxAddress.textContent = "Location: " + (address || "GPS Location");
+            lightboxModal.style.display = "flex";
+        }
+
+        function closePhotoModal(event) {
+            if (!event || event.target === lightboxModal || event.target.classList.contains("lightbox-close")) {
+                lightboxModal.style.display = "none";
+            }
+        }
+
+        // --- Filter Logic ---
+        // Filters: 'active' (default: Pending + Under Inspection), 'Pending', 'Under Inspection', 'Cleaned & Resolved'
+        const filterTabs = document.querySelectorAll(".filter-tab-btn");
+        const reportCards = document.querySelectorAll("#citizen-reports-grid .report-card");
+        const filterEmptyState = document.getElementById("filter-empty-state");
+        const filterEmptyTitle = document.getElementById("filter-empty-title");
+        const filterEmptyDesc = document.getElementById("filter-empty-desc");
+
+        let currentFilter = "active";
+
+        function applyFilter(filterKey) {
+            currentFilter = filterKey;
+
+            filterTabs.forEach(btn => {
+                if (btn.getAttribute("data-filter") === filterKey) {
+                    btn.classList.add("active");
+                } else {
+                    btn.classList.remove("active");
+                }
+            });
+
+            let visibleCount = 0;
+
+            reportCards.forEach(card => {
+                const normStatus = card.getAttribute("data-status-norm");
+
+                let shouldShow = false;
+
+                if (filterKey === "active") {
+                    // Default view: Show Pending + Under Inspection, HIDE Cleaned & Resolved
+                    shouldShow = (normStatus === "Pending" || normStatus === "Under Inspection");
+                } else if (filterKey === "Pending") {
+                    shouldShow = (normStatus === "Pending");
+                } else if (filterKey === "Under Inspection") {
+                    shouldShow = (normStatus === "Under Inspection");
+                } else if (filterKey === "Cleaned & Resolved") {
+                    shouldShow = (normStatus === "Cleaned & Resolved");
+                }
+
+                if (shouldShow) {
+                    card.style.display = "flex";
+                    visibleCount++;
+                } else {
+                    card.style.display = "none";
+                }
+            });
+
+            if (filterEmptyState) {
+                if (visibleCount === 0 && reportCards.length > 0) {
+                    filterEmptyState.style.display = "block";
+                    if (filterKey === "Cleaned & Resolved") {
+                        filterEmptyTitle.textContent = "No Resolved Reports Yet";
+                        filterEmptyDesc.textContent = "Reports marked as Cleaned & Resolved by officers will appear here for 10 days.";
+                    } else if (filterKey === "active") {
+                        filterEmptyTitle.textContent = "No Active Reports";
+                        filterEmptyDesc.textContent = "All your submitted reports have been inspected and resolved!";
+                    } else {
+                        filterEmptyTitle.textContent = "No Reports in this category";
+                        filterEmptyDesc.textContent = "You do not currently have any reports with this status.";
+                    }
+                } else {
+                    filterEmptyState.style.display = "none";
+                }
+            }
+        }
+
+        filterTabs.forEach(btn => {
+            btn.addEventListener("click", () => {
+                applyFilter(btn.getAttribute("data-filter"));
+            });
+        });
+
+        // Initialize with default 'active' filter
+        applyFilter("active");
+    </script>
+
+</body>
+</html>

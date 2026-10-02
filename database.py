@@ -26,6 +26,10 @@ def create_database():
 
     # Attempt migration if older columns exist
     try:
+        cursor.execute("ALTER TABLE reports ADD COLUMN resolved_at TIMESTAMP")
+    except Exception:
+        pass
+    try:
         cursor.execute("ALTER TABLE reports ADD COLUMN reporter_name TEXT")
     except Exception:
         pass
@@ -37,6 +41,18 @@ def create_database():
         cursor.execute("ALTER TABLE reports ADD COLUMN raw_label TEXT")
     except Exception:
         pass
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT UNIQUE NOT NULL,
+            email TEXT,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'citizen',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     connection.commit()
     connection.close()
