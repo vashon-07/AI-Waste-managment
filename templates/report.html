@@ -1471,6 +1471,11 @@ usePhotoButton.addEventListener(
             const fileInput = document.getElementById("waste-image");
             const file      = fileInput && fileInput.files && fileInput.files[0];
 
+            // Ensure browser AI classification is guaranteed before submitting
+            if (file && typeof window.ensureAiClassification === "function") {
+                await window.ensureAiClassification(file);
+            }
+
             // No file chosen - skip Cloudinary, submit normally.
             if (!file) return;
 
