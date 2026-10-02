@@ -17,7 +17,8 @@ from cloud_db import (
     supabase_auth_signup,
     supabase_auth_signin,
     cleanup_expired_reports,
-    init_cloud_db
+    init_cloud_db,
+    log_safe_diagnostics
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,6 +30,9 @@ app = Flask(
     template_folder=os.path.join(BASE_DIR, "templates")
 )
 app.secret_key = os.environ.get("SECRET_KEY", "wastewatch-session-secret-key-2026")
+
+# Log safe environment diagnostics on startup
+log_safe_diagnostics()
 
 
 @app.route("/static/<path:filename>")
@@ -293,6 +297,8 @@ def catch_all(path):
                     return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True)
                 elif err == "email_not_confirmed":
                     return render_template("login.html", message="Your email is not confirmed yet. Please verify your email or contact support.", is_error=True)
+                elif err and err != "invalid_credentials":
+                    return render_template("login.html", message=err, is_error=True)
                 else:
                     return render_template("login.html", message="Invalid email/mobile number or password. Please try again.", is_error=True)
 
