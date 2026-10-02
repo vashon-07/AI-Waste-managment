@@ -18,7 +18,8 @@ from cloud_db import (
     supabase_auth_signin,
     cleanup_expired_reports,
     init_cloud_db,
-    log_safe_diagnostics
+    log_safe_diagnostics,
+    check_supabase_health
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -607,8 +608,9 @@ def update_status():
     if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"success": success, "report_id": report_id, "new_status": new_status})
 
-    return redirect("/officer-dashboard")
-
+@app.route("/api/auth-health")
+def auth_health_route():
+    return jsonify(check_supabase_health())
 
 
 if __name__ == "__main__":

@@ -33,29 +33,31 @@ SUPABASE_KEY = _clean_env_val(
 
 SECRET_KEY = _clean_env_val(os.environ.get("SECRET_KEY", ""))
 
-# Try reading from .env file if available
-ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-if os.path.exists(ENV_PATH):
-    try:
-        with open(ENV_PATH, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, val = line.split("=", 1)
-                    key = key.strip()
-                    val = _clean_env_val(val)
-                    if key in ("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL") and not SUPABASE_URL:
-                        SUPABASE_URL = val.rstrip("/")
-                    elif key in ("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY") and not SUPABASE_SERVICE_ROLE_KEY:
-                        SUPABASE_SERVICE_ROLE_KEY = val
-                    elif key in ("SUPABASE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY") and not SUPABASE_KEY:
-                        SUPABASE_KEY = val
-                    elif key == "SECRET_KEY" and not SECRET_KEY:
-                        SECRET_KEY = val
-        if not SUPABASE_KEY and SUPABASE_SERVICE_ROLE_KEY:
-            SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY
-    except Exception:
-        pass
+# Try reading from .env, .env.local, or .env.production if available
+for env_file in (".env", ".env.local", ".env.production"):
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), env_file)
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, val = line.split("=", 1)
+                        key = key.strip()
+                        val = _clean_env_val(val)
+                        if key in ("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL") and not SUPABASE_URL:
+                            SUPABASE_URL = val.rstrip("/")
+                        elif key in ("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY") and not SUPABASE_SERVICE_ROLE_KEY:
+                            SUPABASE_SERVICE_ROLE_KEY = val
+                        elif key in ("SUPABASE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY") and not SUPABASE_KEY:
+                            SUPABASE_KEY = val
+                        elif key == "SECRET_KEY" and not SECRET_KEY:
+                            SECRET_KEY = val
+        except Exception:
+            pass
+
+if not SUPABASE_KEY and SUPABASE_SERVICE_ROLE_KEY:
+    SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY
 
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 LOCAL_DB_PATH = "/tmp/wastewatch.db" if IS_VERCEL else os.path.join(os.path.dirname(os.path.abspath(__file__)), "wastewatch.db")
@@ -561,17 +563,32 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 prof_resp = requests.post(post_url, json=profile_with_uuid, headers=get_supabase_headers(), timeout=6)
                 print(f"[Supabase public.users Insert] Status with UUID: {prof_resp.status_code}")
 
+                profile_inserted = prof_resp.status_code in (200, 201)
+                prof_err_detail = ""
+
                 # If public.users.id is BIGINT identity or user already exists, adapt safely
-                if prof_resp.status_code not in (200, 201):
+                if not profile_inserted:
+                    prof_err_detail = prof_resp.text[:160] if prof_resp.text else ""
+                    print(f"[Supabase public.users Insert] UUID insert failed ({prof_resp.status_code}): {prof_err_detail}. Adapting schema...")
                     check_url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{phone},email.ilike.{email})"
                     check_res = requests.get(check_url, headers=get_supabase_headers(), timeout=6)
                     if check_res.status_code == 200 and check_res.json():
                         patch_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
                         patch_res = requests.patch(patch_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
+                        profile_inserted = patch_res.status_code in (200, 204)
                         print(f"[Supabase public.users Patch] Status: {patch_res.status_code}")
                     else:
                         alt_res = requests.post(post_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
+                        profile_inserted = alt_res.status_code in (200, 201)
+                        if not profile_inserted:
+                            prof_err_detail = alt_res.text[:160] if alt_res.text else prof_err_detail
                         print(f"[Supabase public.users Insert without ID] Status: {alt_res.status_code}")
+
+                if not profile_inserted:
+                    print(f"[Supabase public.users Error] Could not insert into public.users. Error: {prof_err_detail}")
+                    if "row-level security" in prof_err_detail.lower() or prof_resp.status_code in (401, 403):
+                        return None, "Supabase Row-Level Security (RLS) blocked the user profile insert. Ensure SUPABASE_SERVICE_ROLE_KEY is used or RLS is configured on public.users."
+                    return None, f"Created in Supabase Auth, but public.users profile failed: {prof_err_detail}"
 
                 user_profile = {
                     "id": auth_id,
@@ -742,5 +759,40 @@ def create_or_update_user(name, phone, email, password, role="citizen"):
 def get_user_by_credentials(identifier, password):
     """Compatibility wrapper calling supabase_auth_signin."""
     return supabase_auth_signin(identifier, password)
+
+
+def check_supabase_health():
+    """Diagnose Supabase Auth and Database connection health without exposing secrets."""
+    health = {
+        "supabase_url_configured": bool(SUPABASE_URL),
+        "supabase_key_configured": bool(SUPABASE_KEY),
+        "supabase_service_role_configured": bool(SUPABASE_SERVICE_ROLE_KEY),
+        "is_vercel": IS_VERCEL,
+        "supabase_auth_enabled": is_supabase_enabled(),
+        "auth_endpoint": None,
+        "public_users_table": None,
+        "recommendation": None
+    }
+    if not is_supabase_enabled():
+        health["recommendation"] = "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are not configured. If running locally, add them to .env. If on Vercel, set them in Project Settings -> Environment Variables."
+        return health
+
+    try:
+        res = requests.get(f"{SUPABASE_URL}/auth/v1/settings", headers=get_supabase_headers(), timeout=5)
+        health["auth_endpoint"] = {"status": res.status_code, "ok": res.status_code in (200, 204)}
+    except Exception as e:
+        health["auth_endpoint"] = {"status": None, "error": str(e)}
+
+    try:
+        res = requests.get(f"{SUPABASE_URL}/rest/v1/users?select=count", headers=get_supabase_headers(), timeout=5)
+        health["public_users_table"] = {"status": res.status_code, "ok": res.status_code in (200, 204, 206)}
+        if res.status_code in (401, 403):
+            health["public_users_table"]["error"] = "Row Level Security (RLS) is blocking access or key is not service_role key."
+            health["recommendation"] = "Ensure you are using the secret service_role key (SUPABASE_SERVICE_ROLE_KEY) or disable RLS on public.users."
+    except Exception as e:
+        health["public_users_table"] = {"status": None, "error": str(e)}
+
+    return health
+
 
 
