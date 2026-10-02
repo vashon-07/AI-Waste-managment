@@ -98,18 +98,20 @@ def verify_password(stored_password, provided_password):
 
 
 def get_supabase_headers():
+    key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
     return {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
         "Prefer": "return=representation"
     }
 
 
 def get_supabase_auth_headers():
+    key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
     return {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json"
     }
 
@@ -510,20 +512,40 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
             return None, err_msg
 
         try:
-            signup_url = f"{SUPABASE_URL}/auth/v1/signup"
-            signup_payload = {
+            # 1. Attempt user creation via Admin API first (avoids email rate limits and auto-confirms)
+            admin_url = f"{SUPABASE_URL}/auth/v1/admin/users"
+            admin_payload = {
                 "email": email,
                 "password": password,
-                "data": {
+                "email_confirm": True,
+                "user_metadata": {
                     "name": name,
                     "phone": phone,
                     "role": role
                 }
             }
-            auth_headers = get_supabase_auth_headers()
-            print(f"[Supabase Auth SignUp] Initiating POST to {signup_url}")
-            resp = requests.post(signup_url, json=signup_payload, headers=auth_headers, timeout=10)
-            print(f"[Supabase Auth SignUp] HTTP Status: {resp.status_code}")
+            resp = requests.post(admin_url, json=admin_payload, headers=get_supabase_headers(), timeout=10)
+            print(f"[Supabase Admin Create User] Status: {resp.status_code}")
+
+            # If admin endpoint failed due to lack of admin permissions (e.g. anon key), fall back to public signup
+            if resp.status_code not in (200, 201):
+                err_admin = resp.json() if resp.text else {}
+                err_msg = err_admin.get("msg") or err_admin.get("message") or ""
+                if "already registered" in err_msg.lower() or "already exists" in err_msg.lower():
+                    return None, "An account with this email already exists. Please sign in."
+
+                signup_url = f"{SUPABASE_URL}/auth/v1/signup"
+                signup_payload = {
+                    "email": email,
+                    "password": password,
+                    "data": {
+                        "name": name,
+                        "phone": phone,
+                        "role": role
+                    }
+                }
+                resp = requests.post(signup_url, json=signup_payload, headers=get_supabase_auth_headers(), timeout=10)
+                print(f"[Supabase Auth SignUp Fallback] Status: {resp.status_code}")
 
             if resp.status_code in (200, 201):
                 auth_data = resp.json() if resp.text else {}
@@ -610,6 +632,8 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 print(f"[Supabase Auth SignUp Failed] HTTP {resp.status_code}: {safe_msg}")
                 if "already registered" in safe_msg.lower() or "already exists" in safe_msg.lower():
                     return None, "An account with this email already exists. Please sign in."
+                if "rate limit" in safe_msg.lower():
+                    return None, "Supabase email rate limit reached. Please wait 10-15 minutes or disable 'Confirm email' in Supabase Auth."
                 return None, safe_msg
 
         except Exception as e:
