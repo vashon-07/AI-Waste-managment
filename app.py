@@ -299,7 +299,11 @@ def submit_report():
     reporter_name = request.form.get("reporter_name", "Anonymous Citizen").strip() or "Anonymous Citizen"
     reporter_phone = request.form.get("reporter_phone", "").strip()
     description = request.form.get("description", "").strip()
-    address = request.form.get("address", "").strip()
+    address = (
+        request.form.get("address", "").strip()
+        or request.form.get("location_display", "").strip()
+        or request.form.get("location", "").strip()
+    )
     latitude = request.form.get("latitude")
     longitude = request.form.get("longitude")
 
