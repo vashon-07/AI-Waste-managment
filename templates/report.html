@@ -301,39 +301,36 @@
               <div class="form-section">
 
     <label for="location">
-        📍 Location & Exact Address
+        📍 Location
     </label>
 
     <div class="location-input">
+
         <input
             type="text"
             id="location"
-            name="location_display"
-            placeholder="Click 'Detect Location' or type exact street address / landmark..."
-            style="width: 100%; padding: 14px 16px; border: 1px solid #dce5de; border-radius: 12px; font-size: 15px; outline: none;"
+            placeholder="Location will appear here..."
+            readonly
         >
-        <input type="hidden" id="latitude" name="latitude">
-        <input type="hidden" id="longitude" name="longitude">
-        <input type="hidden" id="address" name="address">
+     <input type="hidden" id="latitude" name="latitude">
+<input type="hidden" id="longitude" name="longitude">
+<input type="hidden" id="address" name="address">
     </div>
 
-    <!-- Live Precision & Accuracy Badge -->
-    <div id="location-accuracy-badge" style="display:none; font-size:12.5px; margin-top:8px; padding:6px 12px; border-radius:8px; width:fit-content; font-weight:500;"></div>
-
-    <div class="location-options" style="margin-top:10px;">
+    <div class="location-options">
 
         <button
             type="button"
             class="location-button"
             id="detect-location">
-            📍 Detect Precise Location
+            📍 Detect Location
         </button>
 
         <button
             type="button"
             class="map-button"
             id="select-map">
-            🗺️ Refine on Map
+            🗺️ Select on Map
         </button>
 
     </div>
@@ -341,49 +338,39 @@
 
     <!-- Map Window -->
 
-    <div id="map-modal" class="map-modal">
+<div id="map-modal" class="map-modal">
 
-        <div class="map-box">
+    <div class="map-box">
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <h2 style="margin: 0; font-size: 1.25rem;">🗺️ Pinpoint Exact Waste Location</h2>
-                <button type="button" id="map-locate-btn" style="background:#f0fdf4; border:1px solid #86efac; color:#166534; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">
-                    🎯 GPS Re-locate
-                </button>
-            </div>
+        <h2>🗺️ Select Waste Location</h2>
 
-            <p style="margin-bottom: 12px; font-size: 13.5px; color: #64748b;">
-                Click anywhere on the map or <strong>drag the pin</strong> to the exact spot where the waste is located.
-            </p>
+        <p>
+            Click on the map to place the pin exactly where the waste is located.
+        </p>
 
-            <div id="waste-map"></div>
+        <div id="waste-map"></div>
 
-            <div id="map-address-box" style="margin-top: 12px; padding: 10px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 13px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 16px;">📍</span>
-                <span id="map-address-text" style="flex: 1; word-break: break-word;">No location selected yet. Click or drag the pin.</span>
-            </div>
+        <div class="map-controls">
 
-            <div class="map-controls" style="margin-top: 16px;">
+            <button
+                type="button"
+                id="confirm-map"
+                class="confirm-map-button">
+                ✓ Confirm Location
+            </button>
 
-                <button
-                    type="button"
-                    id="confirm-map"
-                    class="confirm-map-button">
-                    ✓ Confirm Exact Location
-                </button>
-
-                <button
-                    type="button"
-                    id="close-map"
-                    class="close-map-button">
-                    ✕ Cancel
-                </button>
-
-            </div>
+            <button
+                type="button"
+                id="close-map"
+                class="close-map-button">
+                ✕ Cancel
+            </button>
 
         </div>
 
     </div>
+
+</div>
 </div>
 
                 <!-- AI Notice -->
@@ -996,412 +983,311 @@ const usePhotoButton =
         }
     }
 
-    /* ========================================================
-       PRECISE LOCATION DETECTION & INTERACTIVE PINPOINTING
-    ======================================================== */
+    /* =========================
+       LOCATION DETECTION
+    ========================= */
 
-    const detectLocationButton = document.getElementById("detect-location");
-    const locationInput        = document.getElementById("location");
-    const accuracyBadge        = document.getElementById("location-accuracy-badge");
-    const selectMapButton      = document.getElementById("select-map");
-    const mapModal             = document.getElementById("map-modal");
-    const closeMapButton       = document.getElementById("close-map");
-    const confirmMapButton     = document.getElementById("confirm-map");
-    const mapLocateBtn         = document.getElementById("map-locate-btn");
-    const mapAddressText       = document.getElementById("map-address-text");
+    const detectLocationButton =
+        document.getElementById("detect-location");
 
-    let wasteMap          = null;
-    let mapMarker         = null;
-    let accuracyCircle    = null;
-    let selectedLatitude  = null;
-    let selectedLongitude = null;
-    let selectedAddress   = null;
+    const locationInput =
+        document.getElementById("location");
 
-    // Synchronize manual typing in #location with #address hidden input
-    locationInput.addEventListener("input", function () {
-        document.getElementById("address").value = this.value;
-    });
 
-    function showAccuracyBadge(message, type) {
-        if (!accuracyBadge) return;
-        accuracyBadge.textContent = message;
-        accuracyBadge.style.display = "inline-flex";
+    detectLocationButton.addEventListener(
+        "click",
+        function () {
 
-        if (type === "green") {
-            accuracyBadge.style.background = "#f0fdf4";
-            accuracyBadge.style.border = "1.5px solid #86efac";
-            accuracyBadge.style.color = "#166534";
-        } else if (type === "teal") {
-            accuracyBadge.style.background = "#f0fdfa";
-            accuracyBadge.style.border = "1.5px solid #99f6e4";
-            accuracyBadge.style.color = "#115e59";
-        } else if (type === "amber") {
-            accuracyBadge.style.background = "#fffbeb";
-            accuracyBadge.style.border = "1.5px solid #fde68a";
-            accuracyBadge.style.color = "#92400e";
-        } else if (type === "blue") {
-            accuracyBadge.style.background = "#eff6ff";
-            accuracyBadge.style.border = "1.5px solid #bfdbfe";
-            accuracyBadge.style.color = "#1e40af";
-        } else {
-            accuracyBadge.style.background = "#fef2f2";
-            accuracyBadge.style.border = "1.5px solid #fecaca";
-            accuracyBadge.style.color = "#991b1b";
-        }
-    }
+            if (!navigator.geolocation) {
 
-    // Precise Address Formatter using OpenStreetMap building/street details
-    function formatPreciseAddress(data, lat, lng) {
-        if (!data || !data.address) {
-            return data && data.display_name
-                ? data.display_name
-                : `Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        }
+                locationInput.value =
+                    "Location is not supported by this browser.";
 
-        const a = data.address;
-        const parts = [];
+                return;
 
-        // 1. Building / House / Shop / Specific Landmark
-        const landmark = a.house_name || a.building || a.amenity || a.shop || a.office || a.leisure || a.tourism;
-        const houseNo = a.house_number;
-        if (landmark && houseNo) parts.push(`${landmark}, #${houseNo}`);
-        else if (landmark) parts.push(landmark);
-        else if (houseNo) parts.push(`#${houseNo}`);
-
-        // 2. Road / Street / Lane
-        const road = a.road || a.street || a.pedestrian || a.path;
-        if (road && !parts.includes(road)) parts.push(road);
-
-        // 3. Suburb / Neighborhood / Colony / Village
-        const locality = a.neighbourhood || a.suburb || a.residential || a.village || a.city_district;
-        if (locality && !parts.includes(locality)) parts.push(locality);
-
-        // 4. City / Town
-        const city = a.city || a.town || a.county;
-        if (city && !parts.includes(city)) parts.push(city);
-
-        // 5. Postal Code
-        if (a.postcode) parts.push(a.postcode);
-
-        if (parts.length >= 2) {
-            return parts.join(", ");
-        }
-
-        return data.display_name || `Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    }
-
-    // Reverse Geocode a specific lat/lng using high-detail building zoom=18
-    async function reverseGeocode(lat, lng) {
-        try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
-            );
-            if (!res.ok) throw new Error("HTTP " + res.status);
-            const data = await res.json();
-            return formatPreciseAddress(data, lat, lng);
-        } catch (err) {
-            console.warn("Reverse geocode fallback:", err);
-            return `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
-        }
-    }
-
-    // High Precision Geolocation Handler
-    function runPreciseGeolocation(onSuccessCallback, onErrorCallback) {
-        if (!navigator.geolocation) {
-            if (onErrorCallback) onErrorCallback("Geolocation is not supported by your browser.");
-            return;
-        }
-
-        const highAccuracyOptions = {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
-        };
-
-        navigator.geolocation.getCurrentPosition(
-            function (pos) {
-                if (onSuccessCallback) onSuccessCallback(pos);
-            },
-            function (err) {
-                console.warn("High accuracy GPS failed or timed out, trying standard positioning:", err);
-                // Fallback to standard positioning
-                navigator.geolocation.getCurrentPosition(
-                    function (pos) {
-                        if (onSuccessCallback) onSuccessCallback(pos);
-                    },
-                    function (finalErr) {
-                        if (onErrorCallback) onErrorCallback(finalErr);
-                    },
-                    { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
-                );
-            },
-            highAccuracyOptions
-        );
-    }
-
-    /* ── Click: Detect Location ── */
-    detectLocationButton.addEventListener("click", function () {
-        detectLocationButton.textContent = "📍 Detecting (GPS)...";
-        detectLocationButton.disabled = true;
-        locationInput.value = "📍 Acquiring high-precision GPS coordinates...";
-        showAccuracyBadge("📡 Connecting to device GPS & Wi-Fi positioning...", "blue");
-
-        runPreciseGeolocation(
-            async function (pos) {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                const accuracy = pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null;
-
-                selectedLatitude = lat;
-                selectedLongitude = lng;
-                document.getElementById("latitude").value = lat;
-                document.getElementById("longitude").value = lng;
-
-                locationInput.value = "📍 Looking up exact street address...";
-
-                if (accuracy !== null) {
-                    if (accuracy <= 25) {
-                        showAccuracyBadge(`🎯 High Precision: ±${accuracy}m accuracy`, "green");
-                    } else if (accuracy <= 75) {
-                        showAccuracyBadge(`📍 Good Fix: ±${accuracy}m (Click "Refine on Map" to fine-tune)`, "teal");
-                    } else {
-                        showAccuracyBadge(`⚠️ Approximate Fix (±${accuracy}m). Click "Refine on Map" to drag the pin to your exact spot!`, "amber");
-                    }
-                }
-
-                const address = await reverseGeocode(lat, lng);
-                selectedAddress = address;
-                locationInput.value = address;
-                document.getElementById("address").value = address;
-
-                detectLocationButton.textContent = "✓ Location Detected";
-                detectLocationButton.disabled = false;
-
-                // Pre-position map marker
-                if (wasteMap) {
-                    setMapLocation(lat, lng, address, accuracy);
-                }
-            },
-            function (err) {
-                console.error("Location error:", err);
-                let msg = "Unable to determine location.";
-                if (typeof err === "string") {
-                    msg = err;
-                } else if (err.code === 1) {
-                    msg = "Location permission denied. Please enable location access in browser settings.";
-                } else if (err.code === 2) {
-                    msg = "Position unavailable. Please type your location or select on map.";
-                } else if (err.code === 3) {
-                    msg = "Location request timed out. Please try again or select on map.";
-                }
-
-                locationInput.value = "";
-                showAccuracyBadge(msg, "red");
-                detectLocationButton.textContent = "📍 Try Again";
-                detectLocationButton.disabled = false;
-            }
-        );
-    });
-
-    /* ── Leaflet Interactive Map Helpers ── */
-    function setMapLocation(lat, lng, address, accuracy) {
-        selectedLatitude = lat;
-        selectedLongitude = lng;
-
-        if (mapMarker) {
-            wasteMap.removeLayer(mapMarker);
-        }
-        if (accuracyCircle) {
-            wasteMap.removeLayer(accuracyCircle);
-        }
-
-        // Draw accuracy circle if available
-        if (accuracy && accuracy > 5 && accuracy < 500) {
-            accuracyCircle = L.circle([lat, lng], {
-                radius: accuracy,
-                color: "#3b82f6",
-                fillColor: "#60a5fa",
-                fillOpacity: 0.15,
-                weight: 1.5
-            }).addTo(wasteMap);
-        }
-
-        // Draggable Marker
-        mapMarker = L.marker([lat, lng], {
-            draggable: true,
-            autoPan: true
-        }).addTo(wasteMap);
-
-        const popupContent = `<strong>📍 Exact Spot (Draggable)</strong><br><small>${address || "Drag pin to adjust"}</small>`;
-        mapMarker.bindPopup(popupContent).openPopup();
-
-        wasteMap.setView([lat, lng], Math.max(wasteMap.getZoom(), 17));
-
-        if (mapAddressText) {
-            mapAddressText.textContent = address || `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
-        }
-
-        // When pin is dragged
-        mapMarker.on("dragend", async function (e) {
-            const pos = e.target.getLatLng();
-            selectedLatitude = pos.lat;
-            selectedLongitude = pos.lng;
-
-            if (accuracyCircle) {
-                wasteMap.removeLayer(accuracyCircle);
-                accuracyCircle = null;
             }
 
-            if (mapAddressText) {
-                mapAddressText.textContent = "📍 Resolving street address for new pin position...";
-            }
 
-            const newAddr = await reverseGeocode(pos.lat, pos.lng);
-            selectedAddress = newAddr;
-            mapMarker.bindPopup(`<strong>📍 Selected Spot</strong><br><small>${newAddr}</small>`).openPopup();
-            if (mapAddressText) {
-                mapAddressText.textContent = newAddr;
-            }
-        });
+            detectLocationButton.textContent =
+                "📍 Detecting...";
+
+            detectLocationButton.disabled =
+                true;
+
+
+            navigator.geolocation.getCurrentPosition(
+
+                function (position) {
+
+                   const latitude =
+    position.coords.latitude;
+
+const longitude =
+    position.coords.longitude;
+
+document.getElementById("latitude").value = latitude;
+document.getElementById("longitude").value = longitude;
+
+
+                    locationInput.value = "📍 Finding address...";
+
+fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1`
+)
+.then(response => response.json())
+.then(data => {
+
+    if (data.display_name) {
+
+    locationInput.value =
+        data.display_name;
+
+    document.getElementById("address").value =
+        data.display_name;
+
+}
+     else {
+
+        locationInput.value =
+            `Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}`;
+
     }
 
-    async function onMapClicked(lat, lng) {
-        selectedLatitude = lat;
-        selectedLongitude = lng;
+    detectLocationButton.textContent =
+        "✓ Location Detected";
 
-        if (accuracyCircle) {
-            wasteMap.removeLayer(accuracyCircle);
-            accuracyCircle = null;
-        }
+    detectLocationButton.disabled =
+        false;
 
-        if (mapMarker) {
-            mapMarker.setLatLng([lat, lng]);
-        } else {
-            mapMarker = L.marker([lat, lng], { draggable: true, autoPan: true }).addTo(wasteMap);
-            mapMarker.on("dragend", async function (e) {
-                const pos = e.target.getLatLng();
-                selectedLatitude = pos.lat;
-                selectedLongitude = pos.lng;
-                if (mapAddressText) {
-                    mapAddressText.textContent = "📍 Resolving street address...";
-                }
-                const newAddr = await reverseGeocode(pos.lat, pos.lng);
-                selectedAddress = newAddr;
-                mapMarker.bindPopup(`<strong>📍 Selected Spot</strong><br><small>${newAddr}</small>`).openPopup();
-                if (mapAddressText) mapAddressText.textContent = newAddr;
-            });
-        }
+})
+.catch(error => {
 
-        if (mapAddressText) {
-            mapAddressText.textContent = "📍 Resolving street address for selected pin...";
-        }
+    console.error(
+        "Address lookup error:",
+        error
+    );
 
-        const addr = await reverseGeocode(lat, lng);
-        selectedAddress = addr;
-        mapMarker.bindPopup(`<strong>📍 Selected Spot</strong><br><small>${addr}</small>`).openPopup();
-        if (mapAddressText) {
-            mapAddressText.textContent = addr;
-        }
-    }
+    locationInput.value =
+        `Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}`;
 
-    function initMap() {
-        if (wasteMap) return;
+    detectLocationButton.textContent =
+        "✓ Location Detected";
 
-        // Default initial center: user's detected position, or fallback to center
-        const initialLat = selectedLatitude || 17.6868;
-        const initialLng = selectedLongitude || 83.2185;
-        const initialZoom = selectedLatitude ? 17 : 13;
+    detectLocationButton.disabled =
+        false;
 
-        wasteMap = L.map("waste-map").setView([initialLat, initialLng], initialZoom);
+});
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            maxZoom: 19,
-            attribution: "&copy; OpenStreetMap contributors"
-        }).addTo(wasteMap);
+                    detectLocationButton.disabled =
+                        false;
 
-        // Click on map moves pin to exact clicked position
-        wasteMap.on("click", function (e) {
-            onMapClicked(e.latlng.lat, e.latlng.lng);
-        });
-
-        if (selectedLatitude && selectedLongitude) {
-            setMapLocation(selectedLatitude, selectedLongitude, selectedAddress, null);
-        }
-    }
-
-    /* ── Open Map Modal ── */
-    selectMapButton.addEventListener("click", function () {
-        mapModal.style.display = "flex";
-
-        setTimeout(function () {
-            initMap();
-            wasteMap.invalidateSize();
-
-            if (selectedLatitude && selectedLongitude) {
-                wasteMap.setView([selectedLatitude, selectedLongitude], 18);
-                if (!mapMarker) {
-                    setMapLocation(selectedLatitude, selectedLongitude, selectedAddress, null);
-                }
-            } else {
-                // If no location yet, automatically prompt GPS for map
-                runPreciseGeolocation(async function (pos) {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    const accuracy = Math.round(pos.coords.accuracy || 20);
-                    const addr = await reverseGeocode(lat, lng);
-                    setMapLocation(lat, lng, addr, accuracy);
-                }, null);
-            }
-        }, 120);
-    });
-
-    /* ── GPS Re-locate button inside Map Modal ── */
-    if (mapLocateBtn) {
-        mapLocateBtn.addEventListener("click", function () {
-            mapLocateBtn.textContent = "⏳ Locating...";
-            runPreciseGeolocation(
-                async function (pos) {
-                    mapLocateBtn.textContent = "🎯 GPS Re-locate";
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    const accuracy = Math.round(pos.coords.accuracy || 15);
-                    const addr = await reverseGeocode(lat, lng);
-                    setMapLocation(lat, lng, addr, accuracy);
                 },
-                function (err) {
-                    mapLocateBtn.textContent = "🎯 GPS Re-locate";
-                    alert("Could not get GPS fix. Please click directly on the map to place the pin.");
+
+
+                function (error) {
+
+                    console.error(
+                        "Location error:",
+                        error
+                    );
+
+
+                    if (error.code === 1) {
+
+                        locationInput.value =
+                            "Location permission denied.";
+
+                    }
+
+                    else if (error.code === 2) {
+
+                        locationInput.value =
+                            "Unable to determine location.";
+
+                    }
+
+                    else if (error.code === 3) {
+
+                        locationInput.value =
+                            "Location request timed out.";
+
+                    }
+
+
+                    detectLocationButton.textContent =
+                        "📍 Try Again";
+
+                    detectLocationButton.disabled =
+                        false;
+
+                },
+
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
                 }
+
             );
-        });
-    }
 
-    /* ── Confirm Map Location ── */
-    confirmMapButton.addEventListener("click", async function () {
-        if (selectedLatitude === null || selectedLongitude === null) {
-            alert("Please click or drag the pin on the map to pinpoint the exact waste location.");
-            return;
         }
+    );
+    
+       /* =========================
+       SELECT LOCATION ON MAP
+    ========================= */
 
-        document.getElementById("latitude").value = selectedLatitude;
-        document.getElementById("longitude").value = selectedLongitude;
+    const selectMapButton =
+        document.getElementById("select-map");
 
-        if (!selectedAddress || selectedAddress.startsWith("Lat:")) {
-            selectedAddress = await reverseGeocode(selectedLatitude, selectedLongitude);
+    const mapModal =
+        document.getElementById("map-modal");
+
+    const closeMapButton =
+        document.getElementById("close-map");
+
+    const confirmMapButton =
+        document.getElementById("confirm-map");
+
+
+    let wasteMap = null;
+
+    let mapMarker = null;
+
+    let selectedLatitude = null;
+
+    let selectedLongitude = null;
+
+
+    /* Open map */
+
+    selectMapButton.addEventListener(
+        "click",
+        function () {
+
+            mapModal.style.display = "flex";
+
+
+            /* Create map only once */
+
+            if (!wasteMap) {
+
+                wasteMap = L.map("waste-map")
+                    .setView(
+                        [17.6868, 83.2185],
+                        13
+                    );
+
+
+                L.tileLayer(
+                    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                    {
+                        attribution:
+                            '&copy; OpenStreetMap contributors'
+                    }
+                ).addTo(wasteMap);
+
+
+                /* Click map */
+
+                wasteMap.on(
+                    "click",
+                    function (event) {
+
+                        selectedLatitude =
+                            event.latlng.lat;
+
+                        selectedLongitude =
+                            event.latlng.lng;
+
+
+                        /* Remove old marker */
+
+                        if (mapMarker) {
+
+                            wasteMap.removeLayer(
+                                mapMarker
+                            );
+
+                        }
+
+
+                        /* Add new marker */
+
+                        mapMarker =
+                            L.marker([
+                                selectedLatitude,
+                                selectedLongitude
+                            ]).addTo(wasteMap);
+
+
+                        mapMarker
+                            .bindPopup(
+                                "📍 Selected Waste Location"
+                            )
+                            .openPopup();
+
+                    }
+                );
+
+            }
+
+
+            /* Fix map display */
+
+            setTimeout(function () {
+
+                wasteMap.invalidateSize();
+
+            }, 100);
+
         }
+    );
 
-        locationInput.value = selectedAddress;
-        document.getElementById("address").value = selectedAddress;
 
-        showAccuracyBadge("🎯 Exact Pin Confirmed on Map", "green");
-        mapModal.style.display = "none";
-    });
+    /* Confirm location */
 
-    /* ── Close Map Modal ── */
-    closeMapButton.addEventListener("click", function () {
-        mapModal.style.display = "none";
-    });
- 
+    confirmMapButton.addEventListener(
+        "click",
+        function () {
+
+            if (
+                selectedLatitude === null ||
+                selectedLongitude === null
+            ) {
+
+                alert(
+                    "Please click on the map to select the waste location."
+                );
+
+                return;
+
+            }
+
+
+           document.getElementById("latitude").value = selectedLatitude;
+document.getElementById("longitude").value = selectedLongitude;
+
+locationInput.value =
+    `Latitude: ${selectedLatitude.toFixed(6)}, Longitude: ${selectedLongitude.toFixed(6)}`;
+    document.getElementById("address").value = locationInput.value;
+            mapModal.style.display =  "none";
+
+        }
+    );
+
+
+    /* Close map */
+
+    closeMapButton.addEventListener(
+        "click",
+        function () {
+
+            mapModal.style.display =
+                "none";
+
+        }
+    ); 
     /* =========================
    RETAKE PHOTO
 ========================= */
