@@ -7,6 +7,118 @@
     <title>Account - AI WasteWatch</title>
 
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .password-wrapper input {
+            padding-right: 48px !important;
+            width: 100%;
+        }
+        .toggle-pw-btn {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        .toggle-pw-btn:hover { color: #2e8b57; }
+        .forgot-pw-link {
+            display: block;
+            margin-top: 7px;
+            font-size: 13px;
+            color: #2e8b57;
+            font-weight: 600;
+            text-align: right;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        .forgot-pw-link:hover { text-decoration: underline; }
+        /* Forgot-password modal */
+        .fp-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+        }
+        .fp-modal-overlay.open { display: flex; }
+        .fp-modal {
+            background: #fff;
+            border-radius: 18px;
+            padding: 36px 32px 28px;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.22);
+            position: relative;
+            animation: fp-slide-in 0.22s ease;
+        }
+        @keyframes fp-slide-in {
+            from { transform: translateY(-18px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+        .fp-modal-close {
+            position: absolute;
+            top: 14px; right: 18px;
+            background: none; border: none;
+            font-size: 22px; color: #9ca3af;
+            cursor: pointer; padding: 2px 6px;
+            border-radius: 6px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .fp-modal-close:hover { background: #f3f4f6; color: #374151; }
+        .fp-modal-icon { font-size: 40px; text-align: center; margin-bottom: 10px; }
+        .fp-modal h2 { font-size: 18px; font-weight: 700; color: #1f2937; text-align: center; margin-bottom: 10px; }
+        .fp-modal-info {
+            background: #f0f9ff; border: 1.5px solid #bae6fd;
+            border-radius: 10px; padding: 14px 16px;
+            font-size: 14px; color: #0369a1; line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        .fp-modal-info strong { color: #075985; }
+        .fp-id-form { margin-top: 14px; }
+        .fp-id-form label { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; display: block; }
+        .fp-id-form input {
+            width: 100%; padding: 11px 14px;
+            border: 1px solid #d1d5db; border-radius: 10px;
+            font-size: 14px; outline: none; background: #f9fafb;
+            box-sizing: border-box; transition: border-color 0.2s;
+        }
+        .fp-id-form input:focus { border-color: #2e8b57; background: #fff; }
+        .fp-submit-btn {
+            width: 100%; margin-top: 12px; padding: 12px;
+            background: #2e8b57; color: white; border: none;
+            border-radius: 25px; font-size: 15px; font-weight: 700;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .fp-submit-btn:hover { background: #246b43; }
+        .fp-step2 { display: none; text-align: center; }
+        .fp-step2 .fp-check { font-size: 38px; margin-bottom: 10px; }
+        .fp-step2 p { font-size: 14px; color: #374151; line-height: 1.6; }
+        .fp-contact-list {
+            list-style: none; padding: 0; margin: 12px 0 0; text-align: left;
+            font-size: 13.5px; color: #374151;
+        }
+        .fp-contact-list li {
+            padding: 5px 0; border-bottom: 1px solid #e5e7eb;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .fp-contact-list li:last-child { border-bottom: none; }
+    </style>
 </head>
 
 <body>
@@ -63,7 +175,27 @@
 
                 <div class="input-group">
                     <label for="login-password">Password</label>
-                    <input type="password" id="login-password" name="password" placeholder="••••••••" required>
+                    <div class="password-wrapper">
+                        <input type="password" id="login-password" name="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required>
+                        <button type="button" class="toggle-pw-btn" data-target="login-password"
+                            aria-label="Show or hide password" title="Show / hide password">
+                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <button type="button" id="open-forgot-pw" class="forgot-pw-link" aria-haspopup="dialog">Forgot Password?</button>
                 </div>
 
                 <button type="submit" class="login-btn">Sign In</button>
@@ -117,7 +249,26 @@
 
                 <div class="input-group">
                     <label for="reg-password">Create Password</label>
-                    <input type="password" id="reg-password" name="password" placeholder="Create a strong password" required>
+                    <div class="password-wrapper">
+                        <input type="password" id="reg-password" name="password" placeholder="Create a strong password" required>
+                        <button type="button" class="toggle-pw-btn" data-target="reg-password"
+                            aria-label="Show or hide password" title="Show / hide password">
+                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Live Password Requirements Checklist -->
@@ -132,7 +283,26 @@
 
                 <div class="input-group">
                     <label for="reg-confirm-password">Confirm Password</label>
-                    <input type="password" id="reg-confirm-password" name="confirm_password" placeholder="Re-enter your password" required>
+                    <div class="password-wrapper">
+                        <input type="password" id="reg-confirm-password" name="confirm_password" placeholder="Re-enter your password" required>
+                        <button type="button" class="toggle-pw-btn" data-target="reg-confirm-password"
+                            aria-label="Show or hide password" title="Show / hide password">
+                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
                     <div class="input-hint" id="confirm-hint"></div>
                 </div>
 
@@ -291,7 +461,100 @@
                 return false;
             }
         });
+
+        /* ── Eye-toggle: works for all .toggle-pw-btn buttons ── */
+        document.querySelectorAll(".toggle-pw-btn").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var targetId = btn.getAttribute("data-target");
+                var inp = document.getElementById(targetId);
+                if (!inp) return;
+                var hidden = inp.type === "password";
+                inp.type = hidden ? "text" : "password";
+                btn.querySelector(".eye-on").style.display  = hidden ? "none"  : "";
+                btn.querySelector(".eye-off").style.display = hidden ? ""      : "none";
+                btn.setAttribute("aria-label", hidden ? "Hide password" : "Show password");
+                inp.focus();
+            });
+        });
+
+        /* ── Forgot-password modal (citizen login) ── */
+        var fpOverlay  = document.getElementById("fp-overlay");
+        var fpOpenBtn  = document.getElementById("open-forgot-pw");
+        var fpCloseBtn = document.getElementById("fp-close");
+        var fpStep1    = document.getElementById("fp-step1");
+        var fpStep2    = document.getElementById("fp-step2");
+        var fpNextBtn  = document.getElementById("fp-next");
+        var fpEmailIn  = document.getElementById("fp-email");
+        var fpConfMsg  = document.getElementById("fp-conf-msg");
+
+        function fpOpen() {
+            fpStep1.style.display = "";
+            fpStep2.style.display = "none";
+            if (fpEmailIn) fpEmailIn.value = "";
+            fpOverlay.classList.add("open");
+            setTimeout(function () { if (fpEmailIn) fpEmailIn.focus(); }, 80);
+        }
+        function fpClose() {
+            fpOverlay.classList.remove("open");
+            if (fpOpenBtn) fpOpenBtn.focus();
+        }
+
+        if (fpOpenBtn)  fpOpenBtn.addEventListener("click", fpOpen);
+        if (fpCloseBtn) fpCloseBtn.addEventListener("click", fpClose);
+        if (fpOverlay) {
+            fpOverlay.addEventListener("click", function (e) {
+                if (e.target === fpOverlay) fpClose();
+            });
+        }
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && fpOverlay && fpOverlay.classList.contains("open")) fpClose();
+        });
+
+        if (fpNextBtn) {
+            fpNextBtn.addEventListener("click", function () {
+                var em = fpEmailIn ? fpEmailIn.value.trim() : "";
+                var msg = em
+                    ? "Please contact our support team with your registered email <strong>" + em.replace(/</g,"&lt;").replace(/>/g,"&gt;") + "</strong> to reset your password."
+                    : "Please contact our support team with your registered email address to reset your password.";
+                if (fpConfMsg) fpConfMsg.innerHTML = msg;
+                fpStep1.style.display = "none";
+                fpStep2.style.display = "";
+            });
+        }
     </script>
+
+    <!-- Forgot-password modal -->
+    <div id="fp-overlay" class="fp-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fp-title">
+        <div class="fp-modal">
+            <button type="button" class="fp-modal-close" id="fp-close" aria-label="Close">&times;</button>
+            <!-- Step 1 -->
+            <div id="fp-step1">
+                <div class="fp-modal-icon">&#128274;</div>
+                <h2 id="fp-title">Forgot Password?</h2>
+                <div class="fp-modal-info">
+                    <strong>Self-service password reset is not available.</strong><br><br>
+                    Enter your registered email below and our support team will help you regain access.
+                    Your password will never be shared.
+                </div>
+                <div class="fp-id-form">
+                    <label for="fp-email">Registered Email <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+                    <input type="email" id="fp-email" placeholder="name@example.com" autocomplete="email">
+                </div>
+                <button type="button" class="fp-submit-btn" id="fp-next">&#128231; Show Contact Instructions</button>
+            </div>
+            <!-- Step 2 -->
+            <div id="fp-step2" class="fp-step2">
+                <div class="fp-check">&#9989;</div>
+                <h2>Contact Support</h2>
+                <p id="fp-conf-msg">Please contact our support team with your registered email to reset your password.</p>
+                <ul class="fp-contact-list" style="margin-top:14px;">
+                    <li>&#128231; <span>support@wastewatch.gov.in</span></li>
+                    <li>&#128336; <span>Mon &ndash; Fri, 9 AM &ndash; 5 PM IST</span></li>
+                </ul>
+                <p style="margin-top:14px;font-size:12px;color:#9ca3af;">Your account will be verified before any password reset is performed.</p>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>
