@@ -1,56 +1,149 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Municipal Officer Portal - AI WasteWatch</title>
-
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .password-wrapper input {
+            padding-right: 48px !important;
+            width: 100%;
+        }
+        .toggle-password-btn {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        .toggle-password-btn:hover { color: #2e8b57; }
+        .forgot-password-link {
+            display: block;
+            margin-top: 7px;
+            font-size: 13px;
+            color: #2e8b57;
+            font-weight: 600;
+            text-align: right;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        .forgot-password-link:hover { text-decoration: underline; }
+        .fp-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+        }
+        .fp-modal-overlay.open { display: flex; }
+        .fp-modal {
+            background: #fff;
+            border-radius: 18px;
+            padding: 36px 32px 28px;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.22);
+            position: relative;
+            animation: fp-slide-in 0.22s ease;
+        }
+        @keyframes fp-slide-in {
+            from { transform: translateY(-18px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+        .fp-modal-close {
+            position: absolute;
+            top: 14px; right: 18px;
+            background: none; border: none;
+            font-size: 22px; color: #9ca3af;
+            cursor: pointer; padding: 2px 6px;
+            border-radius: 6px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .fp-modal-close:hover { background: #f3f4f6; color: #374151; }
+        .fp-modal-icon { font-size: 42px; text-align: center; margin-bottom: 12px; }
+        .fp-modal h2 { font-size: 19px; font-weight: 700; color: #1f2937; text-align: center; margin-bottom: 10px; }
+        .fp-modal-info {
+            background: #f0f9ff; border: 1.5px solid #bae6fd;
+            border-radius: 10px; padding: 14px 16px;
+            font-size: 14px; color: #0369a1; line-height: 1.6;
+            margin-bottom: 18px; text-align: left;
+        }
+        .fp-modal-info strong { color: #075985; }
+        .fp-modal-contact-list {
+            list-style: none; padding: 0; margin: 10px 0 0;
+            font-size: 13.5px; color: #374151;
+        }
+        .fp-modal-contact-list li {
+            padding: 5px 0; border-bottom: 1px solid #e5e7eb;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .fp-modal-contact-list li:last-child { border-bottom: none; }
+        .fp-id-form { margin-top: 16px; }
+        .fp-id-form label { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; display: block; }
+        .fp-id-form input {
+            width: 100%; padding: 11px 14px;
+            border: 1px solid #d1d5db; border-radius: 10px;
+            font-size: 14px; outline: none; background: #f9fafb;
+            box-sizing: border-box; transition: border-color 0.2s;
+        }
+        .fp-id-form input:focus { border-color: #2e8b57; background: #fff; }
+        .fp-submit-btn {
+            width: 100%; margin-top: 12px; padding: 12px;
+            background: #2e8b57; color: white; border: none;
+            border-radius: 25px; font-size: 15px; font-weight: 700;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .fp-submit-btn:hover { background: #246b43; }
+        .fp-confirmation { display: none; text-align: center; padding: 8px 0 4px; }
+        .fp-check { font-size: 40px; margin-bottom: 10px; }
+        .fp-confirmation p { font-size: 14px; color: #374151; line-height: 1.6; }
+    </style>
 </head>
-
 <body>
-
     <header>
-        <a href="/" class="logo-link"><div class="logo">♻️ AI WasteWatch</div></a>
-
+        <a href="/" class="logo-link"><div class="logo">&#9851;&#65039; AI WasteWatch</div></a>
         <nav>
             <a href="/">Home</a>
             <a href="/report">Report Waste</a>
             <a href="/login">Citizen Login</a>
-            <a href="/officer-login" class="active login-nav-btn officer-btn">🏛️ Officer Portal</a>
+            <a href="/officer-login" class="active login-nav-btn officer-btn">&#127963;&#65039; Officer Portal</a>
         </nav>
     </header>
-
     <main class="login-page officer-portal-bg">
-
         <div class="login-card officer-card">
-
-            <div class="officer-badge">🏛️ MUNICIPAL ADMINISTRATION</div>
-
+            <div class="officer-badge">&#127963;&#65039; MUNICIPAL ADMINISTRATION</div>
             <h1>Officer <span>Command Portal</span></h1>
-            <p class="login-subtitle">Official access for Municipal Sanitation Officers, Ward Inspectors & Cleanliness Taskforce</p>
-
+            <p class="login-subtitle">Official access for Municipal Sanitation Officers, Ward Inspectors &amp; Cleanliness Taskforce</p>
             {% if message %}
             <div class="login-alert {% if is_error %}error{% endif %}">
                 {{ message }}
             </div>
             {% endif %}
-
             <form class="login-form" action="/officer-login" method="POST">
-
                 <div class="input-group">
                     <label for="officer_id">Officer ID or Official Email</label>
-                    <input 
-                        type="text" 
-                        id="officer_id" 
-                        name="officer_id" 
-                        placeholder="e.g. OFC-7082 or officer@municipality.gov.in" 
-                        value="officer@municipality.gov.in" 
-                        required
-                    >
+                    <input type="text" id="officer_id" name="officer_id"
+                        placeholder="e.g. OFC-7082 or officer@municipality.gov.in"
+                        value="officer@municipality.gov.in" required>
                 </div>
-
                 <div class="input-group">
                     <label for="ward">Assigned Ward / Jurisdiction</label>
                     <select id="ward" name="ward" required>
@@ -61,34 +154,178 @@
                         <option value="Ward 4 - Coastal Zone">Ward 4 - Coastal Zone</option>
                     </select>
                 </div>
-
+                <!-- Password field with show/hide toggle -->
                 <div class="input-group">
                     <label for="officer_password">Security Key / Password</label>
-                    <input 
-                        type="password" 
-                        id="officer_password" 
-                        name="officer_password" 
-                        placeholder="••••••••" 
-                        value="Officer@123" 
-                        required
-                    >
+                    <div class="password-wrapper">
+                        <input type="password" id="officer_password" name="officer_password"
+                            placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+                            value="Officer@123" required>
+                        <!-- type="button" prevents accidental form submit -->
+                        <button type="button" id="toggle-password"
+                            class="toggle-password-btn"
+                            aria-label="Show or hide password"
+                            title="Show / hide password">
+                            <!-- Eye open (password hidden) -->
+                            <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg"
+                                 width="20" height="20" viewBox="0 0 24 24"
+                                 fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <!-- Eye off (password visible) -->
+                            <svg id="eye-off-icon" xmlns="http://www.w3.org/2000/svg"
+                                 width="20" height="20" viewBox="0 0 24 24"
+                                 fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- Forgot password -->
+                    <button type="button" id="open-forgot-password"
+                        class="forgot-password-link" aria-haspopup="dialog">
+                        Forgot Password?
+                    </button>
                 </div>
-
-                <button type="submit" class="login-btn officer-login-btn">🔐 Access Officer Dashboard</button>
-
+                <!-- end password group -->
+                <button type="submit" class="login-btn officer-login-btn">&#128272; Access Officer Dashboard</button>
                 <div class="officer-demo-hint">
-                    <p>💡 <strong>Demo Credentials Ready:</strong> Simply click "Access Officer Dashboard" to test.</p>
+                    <p>&#128161; <strong>Demo Credentials Ready:</strong> Simply click "Access Officer Dashboard" to test.</p>
                 </div>
-
                 <div class="login-footer">
                     <p>Are you a citizen? <a href="/report">Submit a Waste Report</a> or <a href="/login">Citizen Login</a></p>
                 </div>
-
             </form>
-
         </div>
-
     </main>
 
+    <!-- FORGOT PASSWORD MODAL — no credentials exposed, no fake reset -->
+    <div id="fp-modal-overlay" class="fp-modal-overlay"
+         role="dialog" aria-modal="true" aria-labelledby="fp-modal-title">
+        <div class="fp-modal">
+            <button type="button" class="fp-modal-close" id="close-fp-modal" aria-label="Close">&times;</button>
+            <!-- Step 1 -->
+            <div id="fp-step-1">
+                <div class="fp-modal-icon">&#128274;</div>
+                <h2 id="fp-modal-title">Password Reset Request</h2>
+                <div class="fp-modal-info">
+                    <strong>Password reset is managed by the Municipal Administrator.</strong><br><br>
+                    Officer account passwords can only be reset by an authorised system administrator.
+                    Self-service reset is not available for security reasons.
+                </div>
+                <div class="fp-id-form">
+                    <label for="fp-officer-id">Your Officer ID or Email
+                        <span style="font-weight:400;color:#9ca3af;">(optional)</span>
+                    </label>
+                    <!-- Client-side only — value is never sent to any server -->
+                    <input type="text" id="fp-officer-id"
+                        placeholder="e.g. officer@municipality.gov.in"
+                        autocomplete="username">
+                </div>
+                <button type="button" class="fp-submit-btn" id="fp-next-btn">
+                    &#128231; Show Contact Instructions
+                </button>
+            </div>
+            <!-- Step 2 -->
+            <div id="fp-step-2" class="fp-confirmation">
+                <div class="fp-check">&#9989;</div>
+                <h2>Contact Your Administrator</h2>
+                <p id="fp-confirmation-text">
+                    Please contact your Municipal Administrator to reset your password.
+                </p>
+                <ul class="fp-modal-contact-list" style="text-align:left;margin-top:14px;">
+                    <li>&#128231; <span>admin@wastewatch.gov.in</span></li>
+                    <li>&#127963;&#65039; <span>Municipal Administration Office &mdash; IT Help Desk</span></li>
+                    <li>&#128336; <span>Mon &ndash; Fri, 9 AM &ndash; 5 PM IST</span></li>
+                </ul>
+                <p style="margin-top:16px;font-size:12px;color:#9ca3af;">
+                    Your password will only be reset after identity verification by the administrator.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        "use strict";
+
+        /* Show / Hide password */
+        var pwInput    = document.getElementById("officer_password");
+        var toggleBtn  = document.getElementById("toggle-password");
+        var eyeOn      = document.getElementById("eye-icon");
+        var eyeOff     = document.getElementById("eye-off-icon");
+
+        if (toggleBtn && pwInput) {
+            toggleBtn.addEventListener("click", function () {
+                var hidden = pwInput.type === "password";
+                pwInput.type          = hidden ? "text" : "password";
+                eyeOn.style.display   = hidden ? "none"  : "";
+                eyeOff.style.display  = hidden ? ""      : "none";
+                toggleBtn.setAttribute("aria-label", hidden ? "Hide password" : "Show password");
+                pwInput.focus();
+            });
+        }
+
+        /* Forgot-password modal */
+        var overlay    = document.getElementById("fp-modal-overlay");
+        var openBtn    = document.getElementById("open-forgot-password");
+        var closeBtn   = document.getElementById("close-fp-modal");
+        var step1      = document.getElementById("fp-step-1");
+        var step2      = document.getElementById("fp-step-2");
+        var nextBtn    = document.getElementById("fp-next-btn");
+        var fpId       = document.getElementById("fp-officer-id");
+        var fpMsg      = document.getElementById("fp-confirmation-text");
+
+        function openModal() {
+            step1.style.display = "";
+            step2.style.display = "none";
+            if (fpId) fpId.value = "";
+            overlay.classList.add("open");
+            setTimeout(function () { if (fpId) fpId.focus(); }, 80);
+        }
+
+        function closeModal() {
+            overlay.classList.remove("open");
+            if (openBtn) openBtn.focus();
+        }
+
+        if (openBtn)  openBtn.addEventListener("click", openModal);
+        if (closeBtn) closeBtn.addEventListener("click", closeModal);
+
+        if (overlay) {
+            overlay.addEventListener("click", function (e) {
+                if (e.target === overlay) closeModal();
+            });
+        }
+
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && overlay && overlay.classList.contains("open")) {
+                closeModal();
+            }
+        });
+
+        if (nextBtn) {
+            nextBtn.addEventListener("click", function () {
+                var id = fpId ? fpId.value.trim() : "";
+                var msg = id
+                    ? "Please contact your Municipal Administrator with your Officer ID <strong>(" + esc(id) + ")</strong> to request a password reset. They will verify your identity before resetting access."
+                    : "Please contact your Municipal Administrator and provide your Officer ID or registered email to request a password reset.";
+                if (fpMsg) fpMsg.innerHTML = msg;
+                step1.style.display = "none";
+                step2.style.display = "";
+            });
+        }
+
+        function esc(s) {
+            return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+                    .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+        }
+    }());
+    </script>
 </body>
 </html>
