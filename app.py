@@ -12,8 +12,10 @@ from cloud_db import (
     update_report_status,
     get_user_by_credentials,
     get_user_by_phone,
+    get_user_by_email,
     create_or_update_user,
-    verify_password,
+    supabase_auth_signup,
+    supabase_auth_signin,
     cleanup_expired_reports,
     init_cloud_db
 )
@@ -126,18 +128,6 @@ def init_db():
             ('Anil Verma', '9988776655', 'https://images.unsplash.com/photo-1595278069441-2cf29f8005a4?auto=format&fit=crop&w=600&q=80', 'Hazardous chemicals and medical discard in open vacant plot.', 17.7042, 83.2975, 'MVP Colony, Sector 2, Visakhapatnam', 'Hazardous', 'Critical', 96.0, 'Pending')
         """)
 
-    # Seed sample citizen accounts
-    cursor.execute("SELECT COUNT(*) FROM users")
-    user_count = cursor.fetchone()[0]
-    if user_count == 0:
-        cursor.execute("""
-            INSERT OR IGNORE INTO users (name, phone, email, password, role)
-            VALUES 
-            ('Rahul Sharma', '9876543210', 'rahul@gmail.com', 'Password@123', 'citizen'),
-            ('Priya Patel', '9812345678', 'priya@gmail.com', 'Password@123', 'citizen'),
-            ('Anil Verma', '9988776655', 'anil@gmail.com', 'Password@123', 'citizen')
-        """)
-
     connection.commit()
     connection.close()
     init_cloud_db()
@@ -151,11 +141,17 @@ def get_current_citizen():
     """Helper to retrieve the authenticated citizen from session or secure cookie."""
     phone = session.get("citizen_phone") or request.cookies.get("citizen_phone")
     name = session.get("citizen_name") or request.cookies.get("citizen_name")
-    if phone:
-        user = get_user_by_phone(phone)
+    email = session.get("citizen_email")
+    role = session.get("citizen_role") or "citizen"
+    if phone or email:
+        user = None
+        if phone:
+            user = get_user_by_phone(phone)
+        elif email:
+            user = get_user_by_email(email)
         if user:
             return user
-        return {"name": name or "Citizen", "phone": phone, "role": "citizen"}
+        return {"name": name or "Citizen", "phone": phone or "", "email": email or "", "role": role}
     return None
 
 
@@ -257,38 +253,46 @@ def catch_all(path):
                 if password != confirm_password:
                     return render_template("login.html", message="Passwords do not match. Please try again.", is_error=True)
 
-                success, err = create_or_update_user(name, phone, email, password, role)
-                if not success and err in ("connection_error", "service_error"):
-                    return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True)
+                user_profile, err = supabase_auth_signup(email, password, name, phone, role)
+                if not user_profile:
+                    if err in ("connection_error", "service_error"):
+                        return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True)
+                    elif err:
+                        return render_template("login.html", message=err, is_error=True)
+                    else:
+                        return render_template("login.html", message="Registration failed. Please try again.", is_error=True)
 
-                session["citizen_phone"] = phone
-                session["citizen_name"] = name
+                session["citizen_phone"] = user_profile.get("phone") or phone
+                session["citizen_name"] = user_profile.get("name") or name
+                session["citizen_email"] = user_profile.get("email") or email
+                session["citizen_role"] = user_profile.get("role") or role
 
                 resp = make_response(redirect("/citizen-dashboard"))
-                resp.set_cookie("citizen_phone", phone, max_age=86400 * 30, httponly=True, samesite="Lax")
-                resp.set_cookie("citizen_name", name, max_age=86400 * 30, httponly=True, samesite="Lax")
+                resp.set_cookie("citizen_phone", user_profile.get("phone") or phone, max_age=86400 * 30, httponly=True, samesite="Lax")
+                resp.set_cookie("citizen_name", user_profile.get("name") or name, max_age=86400 * 30, httponly=True, samesite="Lax")
                 return resp
 
             else:
                 identifier = request.form.get("email", "").strip()
                 password = request.form.get("password", "")
 
-                user, err = get_user_by_credentials(identifier, password)
-                if not user and identifier.isdigit() and len(identifier) == 10 and not err:
-                    candidate = get_user_by_phone(identifier)
-                    if candidate and verify_password(candidate.get("password"), password):
-                        user = candidate
+                user, err = supabase_auth_signin(identifier, password)
 
                 if user:
-                    session["citizen_phone"] = user["phone"]
-                    session["citizen_name"] = user["name"]
+                    session["citizen_phone"] = user.get("phone", "")
+                    session["citizen_name"] = user.get("name", "Citizen")
+                    session["citizen_email"] = user.get("email", "")
+                    session["citizen_role"] = user.get("role", "citizen")
 
                     resp = make_response(redirect("/citizen-dashboard"))
-                    resp.set_cookie("citizen_phone", user["phone"], max_age=86400 * 30, httponly=True, samesite="Lax")
-                    resp.set_cookie("citizen_name", user["name"], max_age=86400 * 30, httponly=True, samesite="Lax")
+                    if user.get("phone"):
+                        resp.set_cookie("citizen_phone", user["phone"], max_age=86400 * 30, httponly=True, samesite="Lax")
+                    resp.set_cookie("citizen_name", user.get("name", "Citizen"), max_age=86400 * 30, httponly=True, samesite="Lax")
                     return resp
                 elif err in ("connection_error", "service_error"):
                     return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True)
+                elif err == "email_not_confirmed":
+                    return render_template("login.html", message="Your email is not confirmed yet. Please verify your email or contact support.", is_error=True)
                 else:
                     return render_template("login.html", message="Invalid email/mobile number or password. Please try again.", is_error=True)
 
@@ -330,6 +334,7 @@ def catch_all(path):
         session.pop("citizen_phone", None)
         session.pop("citizen_name", None)
         session.pop("citizen_email", None)
+        session.pop("citizen_role", None)
         resp = make_response(redirect("/login"))
         resp.delete_cookie("citizen_phone")
         resp.delete_cookie("citizen_name")

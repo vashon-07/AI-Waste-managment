@@ -62,6 +62,13 @@ def get_supabase_headers():
     }
 
 
+def get_supabase_auth_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json"
+    }
+
+
 def init_cloud_db():
     """Ensure required tables and columns exist in SQLite database."""
     try:
@@ -115,21 +122,6 @@ def init_cloud_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-        # Seed sample demo citizen accounts if none exist
-        cursor.execute("SELECT COUNT(*) FROM users")
-        if cursor.fetchone()[0] == 0:
-            sample_citizens = [
-                ("Rahul Sharma", "9876543210", "rahul@gmail.com", "Password@123", "citizen"),
-                ("Priya Patel", "9812345678", "priya@gmail.com", "Password@123", "citizen"),
-                ("Anil Verma", "9988776655", "anil@gmail.com", "Password@123", "citizen"),
-                ("Abhishek", "8555063716", "abhishek@wastewatch.org", "Password@123", "citizen"),
-                ("Vashon", "8520970289", "vashon@wastewatch.org", "Password@123", "citizen"),
-            ]
-            cursor.executemany("""
-                INSERT OR IGNORE INTO users (name, phone, email, password, role)
-                VALUES (?, ?, ?, ?, ?)
-            """, sample_citizens)
 
         conn.commit()
         conn.close()
@@ -376,59 +368,44 @@ def update_report_status(report_id, new_status):
         return False
 
 
-def get_user_by_credentials(identifier, password):
-    """Authenticate citizen user by phone or email and password.
-    Returns (user_dict, error_status).
-    """
-    init_cloud_db()
-    ident = (identifier or "").strip().lower()
+def get_user_by_email(email):
+    """Retrieve citizen user by email address from public.users."""
+    email_clean = str(email or "").strip().lower()
+    if not email_clean:
+        return None
 
     if is_supabase_enabled():
         try:
-            # Query Supabase by phone or email (case-insensitive for email)
-            url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{ident},email.ilike.{ident})"
+            url = f"{SUPABASE_URL}/rest/v1/users?email=ilike.{email_clean}"
             resp = requests.get(url, headers=get_supabase_headers(), timeout=6)
             if resp.status_code == 200:
                 rows = resp.json()
                 if rows:
-                    user = rows[0]
-                    if verify_password(user.get("password"), password):
-                        return user, None
-                    return None, "invalid_credentials"
-                return None, "invalid_credentials"
-            else:
-                print(f"[Supabase Auth Error] HTTP {resp.status_code}: {resp.text}")
-                return None, "service_error"
+                    return rows[0]
+                return None
         except Exception as e:
-            print(f"[Supabase Auth Connection Error]: {e}")
-            return None, "connection_error"
+            print(f"[Supabase get_user_by_email Error]: {e}")
+            return None
 
-    # Fallback to SQLite (local development only)
     try:
+        init_cloud_db()
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT * FROM users
-            WHERE LOWER(phone) = ? OR LOWER(email) = ?
-        """, (ident, ident))
+        cursor.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email_clean,))
         row = cursor.fetchone()
         conn.close()
-        if row:
-            user = dict(row)
-            if verify_password(user.get("password"), password):
-                return user, None
-            return None, "invalid_credentials"
-        return None, "invalid_credentials"
+        return dict(row) if row else None
     except Exception as e:
-        print(f"[get_user_by_credentials Error]: {e}")
-        return None, "service_error"
+        print(f"[get_user_by_email Error]: {e}")
+        return None
 
 
 def get_user_by_phone(phone):
-    """Retrieve citizen user by 10-digit phone number."""
-    init_cloud_db()
-    phone_clean = str(phone).strip()
+    """Retrieve citizen user by 10-digit phone number from public.users."""
+    phone_clean = str(phone or "").strip()
+    if not phone_clean:
+        return None
 
     if is_supabase_enabled():
         try:
@@ -448,6 +425,7 @@ def get_user_by_phone(phone):
 
     # Fallback to SQLite (local development only)
     try:
+        init_cloud_db()
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -460,54 +438,98 @@ def get_user_by_phone(phone):
         return None
 
 
-def create_or_update_user(name, phone, email, password, role="citizen"):
-    """Register or update a citizen account with cryptographic password hashing.
-    Returns (success_bool, error_status).
+def supabase_auth_signup(email, password, name, phone, role="citizen"):
+    """Register citizen account using Supabase Auth signUp().
+    After successful registration, creates a profile row in public.users.
+    Does NOT store the password in public.users (kept strictly in Supabase Auth).
+    Uses the Supabase Auth user's UUID as public.users.id if allowed by schema.
+    Returns (user_profile_dict, error_status).
     """
-    init_cloud_db()
     name = (name or "").strip()
     phone = (phone or "").strip()
     email = (email or "").strip().lower()
-    hashed_password = generate_password_hash(password)
+    role = (role or "citizen").strip().lower()
 
     if is_supabase_enabled():
         try:
-            # Check if user already exists in Supabase
-            check_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
-            check_resp = requests.get(check_url, headers=get_supabase_headers(), timeout=6)
-            if check_resp.status_code == 200:
-                existing = check_resp.json()
-                if existing:
-                    patch_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
-                    patch_payload = {
-                        "name": name,
-                        "email": email,
-                        "password": hashed_password,
-                        "role": role
-                    }
-                    resp = requests.patch(patch_url, json=patch_payload, headers=get_supabase_headers(), timeout=6)
-                    if resp.status_code in (200, 204):
-                        return True, None
-                else:
-                    post_url = f"{SUPABASE_URL}/rest/v1/users"
-                    post_payload = {
-                        "name": name,
-                        "phone": phone,
-                        "email": email,
-                        "password": hashed_password,
-                        "role": role
-                    }
-                    resp = requests.post(post_url, json=post_payload, headers=get_supabase_headers(), timeout=6)
-                    if resp.status_code in (200, 201):
-                        return True, None
-            print(f"[Supabase create_or_update_user Error] HTTP {check_resp.status_code}: {check_resp.text}")
-            return False, "service_error"
-        except Exception as e:
-            print(f"[Supabase create_or_update_user Connection Error]: {e}")
-            return False, "connection_error"
+            # 1. Call Supabase Auth signUp() endpoint
+            signup_url = f"{SUPABASE_URL}/auth/v1/signup"
+            signup_payload = {
+                "email": email,
+                "password": password,
+                "data": {
+                    "name": name,
+                    "phone": phone,
+                    "role": role
+                }
+            }
+            resp = requests.post(signup_url, json=signup_payload, headers=get_supabase_auth_headers(), timeout=8)
 
-    # Fallback to SQLite (local development only)
+            if resp.status_code in (200, 201):
+                auth_data = resp.json()
+                auth_user = auth_data.get("user") or auth_data
+                auth_id = auth_user.get("id")
+
+                # If service role key is active, auto-confirm email so user can sign in immediately
+                if auth_id:
+                    try:
+                        admin_confirm_url = f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}"
+                        requests.put(admin_confirm_url, json={"email_confirm": True}, headers=get_supabase_headers(), timeout=4)
+                    except Exception:
+                        pass
+
+                # 2. Create corresponding profile row in public.users
+                # Note: Password is NOT stored in public.users per requirement
+                profile_payload = {
+                    "name": name,
+                    "phone": phone,
+                    "email": email,
+                    "password": "",
+                    "role": role
+                }
+
+                # Try with UUID id first
+                profile_with_uuid = dict(profile_payload)
+                if auth_id:
+                    profile_with_uuid["id"] = auth_id
+
+                post_url = f"{SUPABASE_URL}/rest/v1/users"
+                prof_resp = requests.post(post_url, json=profile_with_uuid, headers=get_supabase_headers(), timeout=6)
+
+                # If public.users.id is BIGINT identity or already exists, adapt safely
+                if prof_resp.status_code not in (200, 201):
+                    check_url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{phone},email.ilike.{email})"
+                    check_res = requests.get(check_url, headers=get_supabase_headers(), timeout=6)
+                    if check_res.status_code == 200 and check_res.json():
+                        patch_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
+                        requests.patch(patch_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
+                    else:
+                        requests.post(post_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
+
+                user_profile = {
+                    "id": auth_id,
+                    "name": name,
+                    "phone": phone,
+                    "email": email,
+                    "role": role
+                }
+                return user_profile, None
+
+            else:
+                err_json = resp.json() if resp.text else {}
+                msg = err_json.get("msg") or err_json.get("error_description") or err_json.get("message") or "Registration failed."
+                if "already registered" in msg.lower() or "already exists" in msg.lower():
+                    return None, "An account with this email already exists. Please sign in."
+                return None, msg
+
+        except Exception as e:
+            print(f"[Supabase Auth SignUp Error]: {e}")
+            if IS_VERCEL:
+                return None, "connection_error"
+
+    # Local development fallback (when Supabase is not configured)
     try:
+        init_cloud_db()
         conn = sqlite3.connect(LOCAL_DB_PATH)
         cursor = conn.cursor()
         cursor.execute("""
@@ -516,14 +538,127 @@ def create_or_update_user(name, phone, email, password, role="citizen"):
             ON CONFLICT(phone) DO UPDATE SET
                 name=excluded.name,
                 email=excluded.email,
-                password=excluded.password,
                 role=excluded.role
-        """, (name, phone, email, hashed_password, role))
+        """, (name, phone, email, "", role))
         conn.commit()
         conn.close()
-        return True, None
+        return {"name": name, "phone": phone, "email": email, "role": role}, None
     except Exception as e:
-        print(f"[create_or_update_user Error]: {e}")
-        return False, "service_error"
+        print(f"[Local SignUp Fallback Error]: {e}")
+        return None, "service_error"
+
+
+def supabase_auth_signin(identifier, password):
+    """Authenticate citizen user using Supabase Auth signInWithPassword().
+    After login, retrieves the user's profile and role from public.users for role-based access.
+    Returns (user_profile_dict, error_status).
+    """
+    ident = (identifier or "").strip()
+    password = (password or "")
+
+    if not ident or not password:
+        return None, "invalid_credentials"
+
+    if is_supabase_enabled():
+        try:
+            email_to_auth = ident
+
+            # If user entered 10-digit mobile number, resolve email from public.users
+            if not "@" in ident:
+                clean_phone = ident.strip()
+                lookup_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{clean_phone}&select=email"
+                lookup_resp = requests.get(lookup_url, headers=get_supabase_headers(), timeout=6)
+                if lookup_resp.status_code == 200 and lookup_resp.json():
+                    email_to_auth = lookup_resp.json()[0].get("email", "")
+                if not email_to_auth or "@" not in email_to_auth:
+                    return None, "invalid_credentials"
+
+            # Call Supabase Auth signInWithPassword() (GoTrue token endpoint)
+            token_url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
+            signin_payload = {
+                "email": email_to_auth.lower(),
+                "password": password
+            }
+            resp = requests.post(token_url, json=signin_payload, headers=get_supabase_auth_headers(), timeout=8)
+
+            if resp.status_code == 200:
+                auth_data = resp.json()
+                auth_user = auth_data.get("user") or {}
+                auth_uid = auth_user.get("id")
+                user_meta = auth_user.get("user_metadata") or {}
+
+                # Retrieve user profile and role from public.users
+                prof_url = f"{SUPABASE_URL}/rest/v1/users?email=ilike.{email_to_auth.lower()}"
+                prof_resp = requests.get(prof_url, headers=get_supabase_headers(), timeout=6)
+                user_row = None
+                if prof_resp.status_code == 200 and prof_resp.json():
+                    user_row = prof_resp.json()[0]
+
+                if user_row:
+                    user_profile = {
+                        "id": user_row.get("id") or auth_uid,
+                        "name": user_row.get("name") or user_meta.get("name", "Citizen"),
+                        "phone": user_row.get("phone") or user_meta.get("phone", ""),
+                        "email": user_row.get("email") or email_to_auth,
+                        "role": user_row.get("role") or user_meta.get("role", "citizen")
+                    }
+                else:
+                    user_profile = {
+                        "id": auth_uid,
+                        "name": user_meta.get("name", "Citizen"),
+                        "phone": user_meta.get("phone", ""),
+                        "email": email_to_auth,
+                        "role": user_meta.get("role", "citizen")
+                    }
+                    try:
+                        requests.post(f"{SUPABASE_URL}/rest/v1/users", json={
+                            "name": user_profile["name"],
+                            "phone": user_profile["phone"],
+                            "email": user_profile["email"],
+                            "password": "",
+                            "role": user_profile["role"]
+                        }, headers=get_supabase_headers(), timeout=4)
+                    except Exception:
+                        pass
+
+                return user_profile, None
+
+            else:
+                err_data = resp.json() if resp.text else {}
+                err_desc = err_data.get("error_description") or err_data.get("msg") or err_data.get("message") or ""
+                if "confirm" in err_desc.lower():
+                    return None, "email_not_confirmed"
+                return None, "invalid_credentials"
+
+        except Exception as e:
+            print(f"[Supabase Auth SignIn Connection Error]: {e}")
+            return None, "connection_error"
+
+    # Local development fallback (when Supabase is unconfigured)
+    try:
+        init_cloud_db()
+        conn = sqlite3.connect(LOCAL_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE LOWER(phone) = ? OR LOWER(email) = ?", (ident.lower(), ident.lower()))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return dict(row), None
+        return None, "invalid_credentials"
+    except Exception as e:
+        print(f"[Local SignIn Fallback Error]: {e}")
+        return None, "service_error"
+
+
+def create_or_update_user(name, phone, email, password, role="citizen"):
+    """Compatibility wrapper calling supabase_auth_signup."""
+    user_prof, err = supabase_auth_signup(email, password, name, phone, role)
+    return (True, None) if user_prof else (False, err)
+
+
+def get_user_by_credentials(identifier, password):
+    """Compatibility wrapper calling supabase_auth_signin."""
+    return supabase_auth_signin(identifier, password)
 
 
