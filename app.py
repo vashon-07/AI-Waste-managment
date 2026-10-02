@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, send_from_directory, url_for, jsonify
+from flask import Flask, render_template, request, redirect, send_from_directory, url_for, jsonify, make_response
 import sqlite3
 import os
 import base64
 import re
 from ai.predict import predict_waste
+from cloud_db import get_all_reports, insert_report, update_report_status
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -225,18 +226,18 @@ def catch_all(path):
         officer_name = request.args.get("officer_name", "Officer In-Charge")
         officer_ward = request.args.get("ward", "All Wards (Central Command)")
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM reports ORDER BY id DESC")
-        reports = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        reports = get_all_reports()
 
-        return render_template(
+        resp = make_response(render_template(
             "officer_dashboard.html",
             reports=reports,
             officer_name=officer_name,
             officer_ward=officer_ward
-        )
+        ))
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
 
     # 5. Officer Logout
     elif target in ("officer-logout", "officer/logout"):
@@ -364,28 +365,19 @@ def submit_report():
     if not waste_type or not severity or priority_score is None:
         waste_type, severity, priority_score = analyze_waste_ai(description, image.filename if image else "")
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO reports
-        (reporter_name, reporter_phone, image_path, description, address, latitude, longitude, waste_type, raw_label, severity, priority_score, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        reporter_name,
-        reporter_phone,
-        image_path,
-        description,
-        address,
-        lat,
-        lng,
-        waste_type,
-        raw_label,
-        severity,
-        priority_score,
-        "Pending"
-    ))
-    conn.commit()
-    conn.close()
+    insert_report({
+        "reporter_name": reporter_name,
+        "reporter_phone": reporter_phone,
+        "image_path": image_path,
+        "description": description,
+        "address": address,
+        "latitude": lat,
+        "longitude": lng,
+        "waste_type": waste_type,
+        "raw_label": raw_label,
+        "severity": severity,
+        "priority_score": priority_score,
+    })
 
     return render_template(
         "report.html",
@@ -399,14 +391,10 @@ def update_status():
     new_status = request.form.get("new_status", "Pending")
 
     if report_id:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("UPDATE reports SET status = ? WHERE id = ?", (new_status, report_id))
-        conn.commit()
-        conn.close()
+        update_report_status(report_id, new_status)
 
     return redirect("/officer-dashboard")
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
