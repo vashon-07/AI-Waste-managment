@@ -299,13 +299,16 @@ def submit_report():
     reporter_name = request.form.get("reporter_name", "Anonymous Citizen").strip() or "Anonymous Citizen"
     reporter_phone = request.form.get("reporter_phone", "").strip()
     description = request.form.get("description", "").strip()
-    address = request.form.get("address", "").strip()
+    address = (
+        request.form.get("address", "").strip()
+        or request.form.get("location", "").strip()
+    )
     latitude = request.form.get("latitude")
     longitude = request.form.get("longitude")
 
     try:
-        lat = float(latitude) if latitude else 17.6868
-        lng = float(longitude) if longitude else 83.2185
+        lat = round(float(latitude), 7) if latitude else 17.6868
+        lng = round(float(longitude), 7) if longitude else 83.2185
     except (ValueError, TypeError):
         lat, lng = 17.6868, 83.2185
 

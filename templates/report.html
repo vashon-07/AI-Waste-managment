@@ -300,77 +300,83 @@
 
               <div class="form-section">
 
-    <label for="location">
-        📍 Location
+    <label for="location" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>📍 Precise Location</span>
+        <span style="font-size: 12px; color: #6b7280; font-weight: normal;">Editable • House/Street/Landmark</span>
     </label>
 
     <div class="location-input">
-
         <input
             type="text"
             id="location"
-            placeholder="Location will appear here..."
-            readonly
+            name="location"
+            placeholder="Click 'Detect Location' or type exact street/landmark..."
+            style="width: 100%;"
         >
-     <input type="hidden" id="latitude" name="latitude">
-<input type="hidden" id="longitude" name="longitude">
-<input type="hidden" id="address" name="address">
+        <input type="hidden" id="latitude" name="latitude">
+        <input type="hidden" id="longitude" name="longitude">
+        <input type="hidden" id="address" name="address">
     </div>
 
-    <div class="location-options">
+    <!-- Live GPS Accuracy & Status Badge -->
+    <div id="location-accuracy-badge" style="display: none; margin-top: 8px; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 1px solid transparent; text-align: left;"></div>
 
+    <div class="location-options" style="margin-top: 10px;">
         <button
             type="button"
             class="location-button"
             id="detect-location">
-            📍 Detect Location
+            📍 Detect My GPS
         </button>
 
         <button
             type="button"
             class="map-button"
             id="select-map">
-            🗺️ Select on Map
+            🗺️ Pinpoint on Map
         </button>
-
     </div>
 
 
     <!-- Map Window -->
+    <div id="map-modal" class="map-modal">
+        <div class="map-box">
+            <h2>🗺️ Pinpoint Exact Waste Location</h2>
+            <p style="margin-bottom: 8px;">
+                Drag the marker or click on the map to set the exact street corner or building.
+            </p>
 
-<div id="map-modal" class="map-modal">
+            <div id="waste-map"></div>
 
-    <div class="map-box">
+            <!-- Live Selected Address Preview in Map -->
+            <div id="map-address-preview" style="font-size: 13px; padding: 10px 14px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; margin: 12px 0 6px; text-align: left; color: #166534; line-height: 1.4;">
+                📍 Click or drag the marker to select location...
+            </div>
 
-        <h2>🗺️ Select Waste Location</h2>
+            <div class="map-controls">
+                <button
+                    type="button"
+                    id="map-recenter-gps"
+                    style="background: #0284c7; color: #ffffff; padding: 13px 20px; border: none; border-radius: 25px; font-weight: bold; cursor: pointer;">
+                    🎯 Center on GPS
+                </button>
 
-        <p>
-            Click on the map to place the pin exactly where the waste is located.
-        </p>
+                <button
+                    type="button"
+                    id="confirm-map"
+                    class="confirm-map-button">
+                    ✓ Use This Exact Spot
+                </button>
 
-        <div id="waste-map"></div>
-
-        <div class="map-controls">
-
-            <button
-                type="button"
-                id="confirm-map"
-                class="confirm-map-button">
-                ✓ Confirm Location
-            </button>
-
-            <button
-                type="button"
-                id="close-map"
-                class="close-map-button">
-                ✕ Cancel
-            </button>
-
+                <button
+                    type="button"
+                    id="close-map"
+                    class="close-map-button">
+                    ✕ Cancel
+                </button>
+            </div>
         </div>
-
     </div>
-
-</div>
 </div>
 
                 <!-- AI Notice -->
