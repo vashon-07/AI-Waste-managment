@@ -588,7 +588,11 @@ def submit_report():
 
     has_uploaded_file = bool(image and image.filename)
     cloudinary_url = request.form.get("cloudinary_image_url", "").strip()
-    has_cloudinary = bool(cloudinary_url and cloudinary_url.startswith("https://res.cloudinary.com/"))
+    # Only accept URLs from the project's own Cloudinary cloud account (ulc3tp6k)
+    has_cloudinary = bool(
+        cloudinary_url
+        and cloudinary_url.startswith("https://res.cloudinary.com/ulc3tp6k/")
+    )
 
     print(f"[SUBMISSION] image present: {has_uploaded_file or has_cloudinary} (file: {has_uploaded_file}, cloudinary: {has_cloudinary})")
 
