@@ -581,6 +581,15 @@ def submit_report():
     latitude = request.form.get("latitude")
     longitude = request.form.get("longitude")
 
+    # Validate GPS coordinates – both latitude and longitude must be provided
+    if not latitude or not longitude:
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message="⚠️ Upload an Image and provide GPS location to submit report"
+        )
+    # Existing conversion logic remains unchanged
     try:
         lat = round(float(latitude), 7) if latitude else 17.6868
         lng = round(float(longitude), 7) if longitude else 83.2185
@@ -610,10 +619,16 @@ def submit_report():
                 b64_data = base64.b64encode(image_bytes).decode("utf-8")
                 image_path = f"data:{content_type};base64,{b64_data}"
         except Exception:
-            image_path = "https://images.unsplash.com/photo-1605600659908-0ef719419d41?auto=format&fit=crop&w=600&q=80"
+            image_path = None
 
     if not image_path:
-        image_path = "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80"
+        # No image provided — reject the report
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message="⚠️ Upload an Image to submit report"
+        )
 
     # --- Priority 1: browser-side Transformers.js classification ---
     # The report form now submits hidden fields populated by browser AI.

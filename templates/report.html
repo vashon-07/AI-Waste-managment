@@ -87,8 +87,13 @@
                 <div class="form-section">
 
                     <label>
-                        📸 Waste Image
+                        📸 Waste Image <span style="color: #ef4444; font-weight: 700;">*</span>
                     </label>
+
+                    <!-- Image validation error message -->
+                    <div id="image-error" style="display: none; background: #fef2f2; color: #991b1b; padding: 12px 16px; border-radius: 10px; border: 1.5px solid #fca5a5; margin-bottom: 12px; font-weight: 600; font-size: 14px; text-align: center;">
+                        ⚠️ Upload an Image to submit report
+                    </div>
 
                     <div class="upload-box">
 
@@ -1482,16 +1487,28 @@ usePhotoButton.addEventListener(
             // Guard: if upload already done, let native submit through.
             if (cloudinaryUploadDone) return;
 
-            const fileInput = document.getElementById("waste-image");
-            const file      = fileInput && fileInput.files && fileInput.files[0];
+            const fileInput  = document.getElementById("waste-image");
+            const file       = fileInput && fileInput.files && fileInput.files[0];
+            const imageError = document.getElementById("image-error");
+
+            // ── IMAGE REQUIRED VALIDATION ──
+            // Block submission if no image was uploaded or captured.
+            if (!file) {
+                e.preventDefault();
+                if (imageError) {
+                    imageError.style.display = "block";
+                    imageError.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+                return;
+            }
+
+            // Hide error if image is present
+            if (imageError) imageError.style.display = "none";
 
             // Ensure browser AI classification is guaranteed before submitting
             if (file && typeof window.ensureAiClassification === "function") {
                 await window.ensureAiClassification(file);
             }
-
-            // No file chosen - skip Cloudinary, submit normally.
-            if (!file) return;
 
             // Halt the browser POST so we can upload to Cloudinary first.
             e.preventDefault();
