@@ -35,17 +35,24 @@
         .toggle-pw-btn:hover { color: #2e8b57; }
         .forgot-pw-link {
             display: block;
-            margin-top: 7px;
-            font-size: 13px;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 13.5px;
             color: #2e8b57;
             font-weight: 600;
             text-align: right;
             cursor: pointer;
             background: none;
             border: none;
-            padding: 0;
+            padding: 4px 0;
+            outline: none;
+            user-select: none;
+            transition: color 0.15s ease;
         }
-        .forgot-pw-link:hover { text-decoration: underline; }
+        .forgot-pw-link:hover {
+            color: #1e5e3a;
+            text-decoration: underline;
+        }
         /* Forgot-password modal */
         .fp-modal-overlay {
             display: none;
@@ -195,7 +202,7 @@
                             </svg>
                         </button>
                     </div>
-                    <button type="button" id="open-forgot-pw" class="forgot-pw-link" aria-haspopup="dialog">Forgot Password?</button>
+                    <button type="button" id="open-forgot-pw" class="forgot-pw-link" aria-haspopup="dialog" onclick="fpOpen(event)">Forgot Password?</button>
                 </div>
 
                 <button type="submit" class="login-btn">Sign In</button>
@@ -317,6 +324,85 @@
         </div>
 
     </main>
+
+    <!-- Forgot-password modal -->
+    <div id="fp-overlay" class="fp-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fp-title">
+        <div class="fp-modal">
+            <button type="button" class="fp-modal-close" id="fp-close" onclick="fpClose(event)" aria-label="Close">&times;</button>
+            <!-- Step 1: Request Password Reset -->
+            <div id="fp-step1">
+                <div class="fp-modal-icon">&#128274;</div>
+                <h2 id="fp-title">Reset Password</h2>
+                <div class="fp-modal-info" style="font-size:13.5px; padding:12px 14px; margin-bottom:14px;">
+                    Enter your registered email or 10-digit mobile number and create a new password.
+                </div>
+
+                <div id="fp-error" style="display:none; color:#b91c1c; background:#fef2f2; border:1.5px solid #fecaca; padding:10px 14px; border-radius:10px; font-size:13px; margin-bottom:12px; line-height:1.45;"></div>
+
+                <div class="fp-id-form">
+                    <label for="fp-identifier">Registered Email or 10-Digit Mobile</label>
+                    <input type="text" id="fp-identifier" placeholder="name@example.com or 10-digit mobile" autocomplete="username">
+                </div>
+
+                <div class="fp-id-form" style="margin-top:12px;">
+                    <label for="fp-new-password">New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="fp-new-password" placeholder="At least 8 chars (A-Z, a-z, 0-9, special)" autocomplete="new-password">
+                        <button type="button" class="toggle-pw-btn" data-target="fp-new-password"
+                            aria-label="Show or hide password" title="Show / hide password">
+                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="fp-id-form" style="margin-top:12px;">
+                    <label for="fp-confirm-password">Confirm New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="fp-confirm-password" placeholder="Re-enter new password" autocomplete="new-password">
+                        <button type="button" class="toggle-pw-btn" data-target="fp-confirm-password"
+                            aria-label="Show or hide password" title="Show / hide password">
+                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:none;">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="fp-submit-btn" id="fp-reset-btn" onclick="doPasswordReset(event)" style="margin-top:18px;">&#128273; Reset Password</button>
+            </div>
+            <!-- Step 2: Success Confirmation -->
+            <div id="fp-step2" class="fp-step2">
+                <div class="fp-check">&#9989;</div>
+                <h2 style="font-size:18px; margin-bottom:8px;">Password Reset Successful!</h2>
+                <p id="fp-conf-msg" style="color:#4b5563; line-height:1.6;">Your password has been updated. You can now sign in to AI WasteWatch with your new password.</p>
+                <button type="button" class="fp-submit-btn" id="fp-back-btn" onclick="fpBackToLogin(event)" style="margin-top:20px;">Proceed to Sign In &rarr;</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const tabLogin = document.getElementById("tab-login");
@@ -479,125 +565,125 @@
             inp.focus();
         });
 
-        /* ── Forgot-password modal (citizen login) ── */
-        var fpOverlay       = document.getElementById("fp-overlay");
-        var fpOpenBtn       = document.getElementById("open-forgot-pw");
-        var fpCloseBtn      = document.getElementById("fp-close");
-        var fpStep1         = document.getElementById("fp-step1");
-        var fpStep2         = document.getElementById("fp-step2");
-        var fpResetBtn      = document.getElementById("fp-reset-btn");
-        var fpBackBtn       = document.getElementById("fp-back-btn");
-        var fpIdentIn       = document.getElementById("fp-identifier");
-        var fpNewPwIn       = document.getElementById("fp-new-password");
-        var fpConfPwIn      = document.getElementById("fp-confirm-password");
-        var fpErrorBox      = document.getElementById("fp-error");
-        var loginEmailInput = document.getElementById("login-email");
-        var loginPwInput    = document.getElementById("login-password");
+        /* ── Global functions for Forgot Password modal ── */
+        window.fpOpen = function (e) {
+            if (e && e.preventDefault) e.preventDefault();
+            var overlay = document.getElementById("fp-overlay");
+            var step1 = document.getElementById("fp-step1");
+            var step2 = document.getElementById("fp-step2");
+            var errBox = document.getElementById("fp-error");
+            var newPw = document.getElementById("fp-new-password");
+            var confPw = document.getElementById("fp-confirm-password");
+            var ident = document.getElementById("fp-identifier");
+            var loginEmail = document.getElementById("login-email");
+            var resetBtn = document.getElementById("fp-reset-btn");
 
-        function fpShowError(msg) {
-            if (fpErrorBox) {
-                fpErrorBox.textContent = msg;
-                fpErrorBox.style.display = "block";
+            if (!overlay) return;
+            if (step1) step1.style.display = "";
+            if (step2) step2.style.display = "none";
+            if (errBox) {
+                errBox.textContent = "";
+                errBox.style.display = "none";
             }
-        }
-
-        function fpClearError() {
-            if (fpErrorBox) {
-                fpErrorBox.textContent = "";
-                fpErrorBox.style.display = "none";
+            if (newPw) newPw.value = "";
+            if (confPw) confPw.value = "";
+            if (ident) {
+                var preVal = (loginEmail && loginEmail.value) ? loginEmail.value.trim() : "";
+                ident.value = preVal;
             }
-        }
-
-        function fpOpen() {
-            fpStep1.style.display = "";
-            fpStep2.style.display = "none";
-            fpClearError();
-            if (fpNewPwIn) fpNewPwIn.value = "";
-            if (fpConfPwIn) fpConfPwIn.value = "";
-            if (fpIdentIn) {
-                var preVal = (loginEmailInput && loginEmailInput.value) ? loginEmailInput.value.trim() : "";
-                fpIdentIn.value = preVal;
+            if (resetBtn) {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = "&#128273; Reset Password";
             }
-            if (fpResetBtn) {
-                fpResetBtn.disabled = false;
-                fpResetBtn.innerHTML = "&#128273; Reset Password";
-            }
-            fpOverlay.classList.add("open");
+            overlay.classList.add("open");
             setTimeout(function () {
-                if (fpIdentIn && !fpIdentIn.value) {
-                    fpIdentIn.focus();
-                } else if (fpNewPwIn) {
-                    fpNewPwIn.focus();
+                if (ident && !ident.value) {
+                    ident.focus();
+                } else if (newPw) {
+                    newPw.focus();
                 }
             }, 80);
-        }
+        };
 
-        function fpClose() {
-            fpOverlay.classList.remove("open");
-            if (fpOpenBtn) fpOpenBtn.focus();
-        }
+        window.fpClose = function (e) {
+            if (e && e.preventDefault) e.preventDefault();
+            var overlay = document.getElementById("fp-overlay");
+            var openBtn = document.getElementById("open-forgot-pw");
+            if (overlay) overlay.classList.remove("open");
+            if (openBtn) openBtn.focus();
+        };
 
-        if (fpOpenBtn)  fpOpenBtn.addEventListener("click", fpOpen);
-        if (fpCloseBtn) fpCloseBtn.addEventListener("click", fpClose);
-        if (fpOverlay) {
-            fpOverlay.addEventListener("click", function (e) {
-                if (e.target === fpOverlay) fpClose();
-            });
-        }
-        document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape" && fpOverlay && fpOverlay.classList.contains("open")) fpClose();
-        });
+        window.fpBackToLogin = function (e) {
+            if (e && e.preventDefault) e.preventDefault();
+            var ident = document.getElementById("fp-identifier");
+            var loginEmail = document.getElementById("login-email");
+            var loginPw = document.getElementById("login-password");
+            var idVal = ident ? ident.value.trim() : "";
+            if (loginEmail && idVal) loginEmail.value = idVal;
+            window.fpClose(e);
+            if (loginPw) {
+                loginPw.value = "";
+                loginPw.focus();
+            }
+        };
 
-        if (fpBackBtn) {
-            fpBackBtn.addEventListener("click", function () {
-                var idVal = fpIdentIn ? fpIdentIn.value.trim() : "";
-                if (loginEmailInput && idVal) loginEmailInput.value = idVal;
-                fpClose();
-                if (loginPwInput) {
-                    loginPwInput.value = "";
-                    loginPwInput.focus();
+        window.doPasswordReset = function (e) {
+            if (e && e.preventDefault) e.preventDefault();
+            var identIn = document.getElementById("fp-identifier");
+            var newPwIn = document.getElementById("fp-new-password");
+            var confPwIn = document.getElementById("fp-confirm-password");
+            var errBox = document.getElementById("fp-error");
+            var resetBtn = document.getElementById("fp-reset-btn");
+            var step1 = document.getElementById("fp-step1");
+            var step2 = document.getElementById("fp-step2");
+
+            function showErr(msg) {
+                if (errBox) {
+                    errBox.textContent = msg;
+                    errBox.style.display = "block";
                 }
-            });
-        }
+            }
+            if (errBox) {
+                errBox.textContent = "";
+                errBox.style.display = "none";
+            }
 
-        function doPasswordReset() {
-            fpClearError();
-            var ident = fpIdentIn ? fpIdentIn.value.trim() : "";
-            var newPw = fpNewPwIn ? fpNewPwIn.value : "";
-            var confPw = fpConfPwIn ? fpConfPwIn.value : "";
+            var ident = identIn ? identIn.value.trim() : "";
+            var newPw = newPwIn ? newPwIn.value : "";
+            var confPw = confPwIn ? confPwIn.value : "";
 
             if (!ident) {
-                fpShowError("Please enter your registered email address or 10-digit mobile number.");
-                if (fpIdentIn) fpIdentIn.focus();
+                showErr("Please enter your registered email address or 10-digit mobile number.");
+                if (identIn) identIn.focus();
                 return;
             }
 
             if (!newPw) {
-                fpShowError("Please enter a new password.");
-                if (fpNewPwIn) fpNewPwIn.focus();
+                showErr("Please enter a new password.");
+                if (newPwIn) newPwIn.focus();
                 return;
             }
 
             var hasUpper = /[A-Z]/.test(newPw);
             var hasLower = /[a-z]/.test(newPw);
-            var hasNum   = /[0-9]/.test(newPw);
-            var hasSpec  = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPw);
+            var hasNum = /[0-9]/.test(newPw);
+            var hasSpec = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPw);
 
             if (newPw.length < 8 || !hasUpper || !hasLower || !hasNum || !hasSpec) {
-                fpShowError("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
-                if (fpNewPwIn) fpNewPwIn.focus();
+                showErr("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
+                if (newPwIn) newPwIn.focus();
                 return;
             }
 
             if (newPw !== confPw) {
-                fpShowError("Passwords do not match. Please re-enter.");
-                if (fpConfPwIn) fpConfPwIn.focus();
+                showErr("Passwords do not match. Please re-enter.");
+                if (confPwIn) confPwIn.focus();
                 return;
             }
 
-            if (fpResetBtn) {
-                fpResetBtn.disabled = true;
-                fpResetBtn.innerHTML = "Resetting Password...";
+            if (resetBtn) {
+                resetBtn.disabled = true;
+                resetBtn.innerHTML = "Resetting Password...";
             }
 
             fetch("/api/reset-password", {
@@ -616,120 +702,64 @@
             })
             .then(function (resObj) {
                 if (resObj.ok && resObj.data && resObj.data.success) {
-                    fpStep1.style.display = "none";
-                    fpStep2.style.display = "";
+                    if (step1) step1.style.display = "none";
+                    if (step2) step2.style.display = "";
                 } else {
                     var errMsg = (resObj.data && resObj.data.message) ? resObj.data.message : "Password reset failed. Please try again.";
-                    fpShowError(errMsg);
-                    if (fpResetBtn) {
-                        fpResetBtn.disabled = false;
-                        fpResetBtn.innerHTML = "&#128273; Reset Password";
+                    showErr(errMsg);
+                    if (resetBtn) {
+                        resetBtn.disabled = false;
+                        resetBtn.innerHTML = "&#128273; Reset Password";
                     }
                 }
             })
-            .catch(function (err) {
-                fpShowError("Network error. Please check your connection and try again.");
-                if (fpResetBtn) {
-                    fpResetBtn.disabled = false;
-                    fpResetBtn.innerHTML = "&#128273; Reset Password";
+            .catch(function () {
+                showErr("Network error. Please check your connection and try again.");
+                if (resetBtn) {
+                    resetBtn.disabled = false;
+                    resetBtn.innerHTML = "&#128273; Reset Password";
                 }
+            });
+        };
+
+        // Attach event listeners as additional bindings
+        var fpOpenBtn = document.getElementById("open-forgot-pw");
+        if (fpOpenBtn) fpOpenBtn.addEventListener("click", window.fpOpen);
+
+        var fpCloseBtn = document.getElementById("fp-close");
+        if (fpCloseBtn) fpCloseBtn.addEventListener("click", window.fpClose);
+
+        var fpBackBtn = document.getElementById("fp-back-btn");
+        if (fpBackBtn) fpBackBtn.addEventListener("click", window.fpBackToLogin);
+
+        var fpResetBtn = document.getElementById("fp-reset-btn");
+        if (fpResetBtn) fpResetBtn.addEventListener("click", window.doPasswordReset);
+
+        var fpOverlay = document.getElementById("fp-overlay");
+        if (fpOverlay) {
+            fpOverlay.addEventListener("click", function (e) {
+                if (e.target === fpOverlay) window.fpClose(e);
             });
         }
 
-        if (fpResetBtn) {
-            fpResetBtn.addEventListener("click", doPasswordReset);
-        }
+        document.addEventListener("keydown", function (e) {
+            var overlay = document.getElementById("fp-overlay");
+            if (e.key === "Escape" && overlay && overlay.classList.contains("open")) {
+                window.fpClose(e);
+            }
+        });
 
-        [fpIdentIn, fpNewPwIn, fpConfPwIn].forEach(function (inp) {
+        ["fp-identifier", "fp-new-password", "fp-confirm-password"].forEach(function (id) {
+            var inp = document.getElementById(id);
             if (inp) {
                 inp.addEventListener("keydown", function (e) {
                     if (e.key === "Enter") {
                         e.preventDefault();
-                        doPasswordReset();
+                        window.doPasswordReset(e);
                     }
                 });
             }
         });
     </script>
-
-    <!-- Forgot-password modal -->
-    <div id="fp-overlay" class="fp-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fp-title">
-        <div class="fp-modal">
-            <button type="button" class="fp-modal-close" id="fp-close" aria-label="Close">&times;</button>
-            <!-- Step 1: Request Password Reset -->
-            <div id="fp-step1">
-                <div class="fp-modal-icon">&#128274;</div>
-                <h2 id="fp-title">Reset Password</h2>
-                <div class="fp-modal-info" style="font-size:13.5px; padding:12px 14px; margin-bottom:14px;">
-                    Enter your registered email or 10-digit mobile number and create a new password.
-                </div>
-
-                <div id="fp-error" style="display:none; color:#b91c1c; background:#fef2f2; border:1.5px solid #fecaca; padding:10px 14px; border-radius:10px; font-size:13px; margin-bottom:12px; line-height:1.45;"></div>
-
-                <div class="fp-id-form">
-                    <label for="fp-identifier">Registered Email or 10-Digit Mobile</label>
-                    <input type="text" id="fp-identifier" placeholder="name@example.com or 10-digit mobile" autocomplete="username">
-                </div>
-
-                <div class="fp-id-form" style="margin-top:12px;">
-                    <label for="fp-new-password">New Password</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="fp-new-password" placeholder="At least 8 chars (A-Z, a-z, 0-9, special)" autocomplete="new-password">
-                        <button type="button" class="toggle-pw-btn" data-target="fp-new-password"
-                            aria-label="Show or hide password" title="Show / hide password">
-                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                 style="display:none;">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                                <line x1="1" y1="1" x2="23" y2="23"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="fp-id-form" style="margin-top:12px;">
-                    <label for="fp-confirm-password">Confirm New Password</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="fp-confirm-password" placeholder="Re-enter new password" autocomplete="new-password">
-                        <button type="button" class="toggle-pw-btn" data-target="fp-confirm-password"
-                            aria-label="Show or hide password" title="Show / hide password">
-                            <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                 style="display:none;">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                                <line x1="1" y1="1" x2="23" y2="23"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <button type="button" class="fp-submit-btn" id="fp-reset-btn" style="margin-top:18px;">&#128273; Reset Password</button>
-            </div>
-            <!-- Step 2: Success Confirmation -->
-            <div id="fp-step2" class="fp-step2">
-                <div class="fp-check">&#9989;</div>
-                <h2 style="font-size:18px; margin-bottom:8px;">Password Reset Successful!</h2>
-                <p id="fp-conf-msg" style="color:#4b5563; line-height:1.6;">Your password has been updated. You can now sign in to AI WasteWatch with your new password.</p>
-                <button type="button" class="fp-submit-btn" id="fp-back-btn" style="margin-top:20px;">Proceed to Sign In &rarr;</button>
-            </div>
-        </div>
-    </div>
-
 </body>
 </html>
