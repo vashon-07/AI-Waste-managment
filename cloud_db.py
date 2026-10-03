@@ -526,16 +526,22 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
 
             # Check public.users table for matching email or phone
             try:
-                check_url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{phone_clean},email.ilike.{email_clean})&select=id,email,phone"
-                check_resp = requests.get(check_url, headers=get_supabase_headers(), timeout=6)
-                if check_resp.status_code == 200 and check_resp.json():
-                    for row in check_resp.json():
-                        row_em = (row.get("email") or "").strip().lower()
-                        row_ph = re.sub(r"\D", "", str(row.get("phone") or ""))
-                        if row_em == email_clean:
-                            email_exists = True
-                        if phone_clean and row_ph == phone_clean:
-                            phone_exists = True
+                # 1. Check email
+                chk_em_url = f"{SUPABASE_URL}/rest/v1/users?email=ilike.{email_clean}&select=id,email,phone"
+                chk_em_resp = requests.get(chk_em_url, headers=get_supabase_headers(), timeout=6)
+                if chk_em_resp.status_code == 200 and chk_em_resp.json():
+                    email_exists = True
+
+                # 2. Check phone (both exact clean_phone and trailing 10-digit match)
+                chk_ph_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone_clean}&select=id,email,phone"
+                chk_ph_resp = requests.get(chk_ph_url, headers=get_supabase_headers(), timeout=6)
+                if chk_ph_resp.status_code == 200 and chk_ph_resp.json():
+                    phone_exists = True
+                elif phone_clean:
+                    chk_ph_wildcard = f"{SUPABASE_URL}/rest/v1/users?phone=ilike.*{phone_clean}&select=id,email,phone"
+                    chk_ph_w_resp = requests.get(chk_ph_wildcard, headers=get_supabase_headers(), timeout=6)
+                    if chk_ph_w_resp.status_code == 200 and chk_ph_w_resp.json():
+                        phone_exists = True
             except Exception as e_chk:
                 print(f"[Supabase public.users Pre-check Warning]: {e_chk}")
 
@@ -652,9 +658,24 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
 
                 if not profile_inserted:
                     print(f"[Supabase public.users Error] Could not insert into public.users. Error: {prof_err_detail}")
+                    # Intercept duplicate key violations on public.users and roll back the auth record
+                    if "users_phone_key" in prof_err_detail.lower() or "key (phone)=" in prof_err_detail.lower() or ("phone" in prof_err_detail.lower() and "already exists" in prof_err_detail.lower()):
+                        try:
+                            requests.delete(f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}", headers=get_supabase_headers(), timeout=5)
+                        except Exception:
+                            pass
+                        return None, "This mobile number is already registered. Please sign in or use a different mobile number."
+
+                    if "users_email_key" in prof_err_detail.lower() or "key (email)=" in prof_err_detail.lower() or ("email" in prof_err_detail.lower() and "already exists" in prof_err_detail.lower()):
+                        try:
+                            requests.delete(f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}", headers=get_supabase_headers(), timeout=5)
+                        except Exception:
+                            pass
+                        return None, "This email address is already registered. Please sign in or use a different email."
+
                     if "row-level security" in prof_err_detail.lower() or prof_resp.status_code in (401, 403):
                         return None, "Supabase Row-Level Security (RLS) blocked the user profile insert. Ensure SUPABASE_SERVICE_ROLE_KEY is used or RLS is configured on public.users."
-                    return None, f"Created in Supabase Auth, but public.users profile failed: {prof_err_detail}"
+                    return None, f"Registration failed: {prof_err_detail}"
 
                 user_profile = {
                     "id": auth_id,
