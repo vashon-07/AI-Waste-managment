@@ -4,6 +4,25 @@ import os
 import base64
 import re
 from datetime import datetime
+from collections import defaultdict
+import time
+
+# ---------------------------------------------------------------------------
+# Simple in-memory rate limiter (sliding-window, resets on process restart)
+# ---------------------------------------------------------------------------
+_rate_buckets: dict = defaultdict(list)  # key -> list of timestamps
+
+
+def _is_rate_limited(key: str, max_calls: int, window_secs: int) -> bool:
+    """Return True if the given key has exceeded max_calls in the last window_secs."""
+    now = time.monotonic()
+    bucket = _rate_buckets[key]
+    # Prune old entries
+    _rate_buckets[key] = [t for t in bucket if now - t < window_secs]
+    if len(_rate_buckets[key]) >= max_calls:
+        return True
+    _rate_buckets[key].append(now)
+    return False
 from ai.predict import predict_waste
 from cloud_db import (
     get_all_reports,
@@ -187,29 +206,47 @@ def analyze_waste_ai(description, filename=""):
         return "Mixed Municipal Waste", "Medium", round(dyn_score, 1)
 
 
-# Authorized Municipal Officer accounts (Restricted from citizen login)
+# ---------------------------------------------------------------------------
+# Authorized Municipal Officer accounts
+# Passwords are read from environment variables first; the hardcoded values
+# act as a fallback so the site keeps working without any env changes.
+# To override, set e.g.  OFFICER_PW_DEFAULT=MySecurePass  in your .env
+# ---------------------------------------------------------------------------
+_DEFAULT_PW  = os.environ.get("OFFICER_PW_DEFAULT",  "Officer@123")
+_ADMIN_PW    = os.environ.get("OFFICER_PW_ADMIN",    "Officer@2026")
+_MUNI7082_PW = os.environ.get("OFFICER_PW_MUNI7082", "Officer@123")
+
 OFFICER_ACCOUNTS = {
     "officer@municipality.gov.in": {
-        "password": "Officer@123",
+        "password": _DEFAULT_PW,
         "name": "Chief Officer Rajesh Sharma",
         "ward": "Ward 1 - Central Zone"
     },
     "officer123": {
-        "password": "Officer@123",
+        "password": _DEFAULT_PW,
         "name": "Chief Officer Rajesh Sharma",
         "ward": "Ward 1 - Central Zone"
     },
     "muni-7082": {
-        "password": "Officer@123",
+        "password": _MUNI7082_PW,
         "name": "Inspector Sunita Reddy",
         "ward": "Ward 2 - North Zone"
     },
     "admin@wastewatch.gov.in": {
-        "password": "Officer@2026",
+        "password": _ADMIN_PW,
         "name": "Commissioner K. Rao",
         "ward": "All Wards (Central Command)"
     }
 }
+
+
+def get_current_officer():
+    """Return the authenticated officer dict from session, or None."""
+    name = session.get("officer_name")
+    ward = session.get("officer_ward")
+    if name and ward:
+        return {"name": name, "ward": ward}
+    return None
 
 
 @app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
@@ -382,6 +419,10 @@ def catch_all(path):
 
     # 5. Dedicated Municipal Officer Login
     elif target in ("officer-login", "officer/login", "api/officer-login", "api/officer/login"):
+        # Already logged in → go straight to dashboard
+        if request.method == "GET" and get_current_officer():
+            return redirect("/officer-dashboard")
+
         if request.method == "POST":
             officer_id = request.form.get("officer_id", "").strip().lower()
             officer_password = request.form.get("officer_password", "").strip()
@@ -391,7 +432,10 @@ def catch_all(path):
                 account_info = OFFICER_ACCOUNTS[officer_id]
                 officer_name = account_info["name"]
                 assigned_ward = selected_ward if selected_ward != "All Wards" else account_info["ward"]
-                return redirect(f"/officer-dashboard?officer_name={officer_name}&ward={assigned_ward}")
+                # Store in server-side session (not URL params)
+                session["officer_name"] = officer_name
+                session["officer_ward"] = assigned_ward
+                return redirect("/officer-dashboard")
             else:
                 return render_template(
                     "officer_login.html",
@@ -401,10 +445,15 @@ def catch_all(path):
 
         return render_template("officer_login.html")
 
-    # 6. Municipal Officer Dashboard
+    # 6. Municipal Officer Dashboard (session-protected)
     elif target in ("officer-dashboard", "officer/dashboard", "api/officer-dashboard", "api/officer/dashboard"):
-        officer_name = request.args.get("officer_name", "Officer In-Charge")
-        officer_ward = request.args.get("ward", "All Wards (Central Command)")
+        officer = get_current_officer()
+        if not officer:
+            return redirect("/officer-login")
+
+        # Support legacy URL-param links that may still exist in bookmarks
+        officer_name = officer["name"]
+        officer_ward = officer["ward"]
 
         reports = get_all_reports()
 
@@ -432,20 +481,38 @@ def catch_all(path):
         resp.headers["Expires"] = "0"
         return resp
 
-    # 7. Officer Logout
+    # 7. Officer Logout – clear session
     elif target in ("officer-logout", "officer/logout"):
+        session.pop("officer_name", None)
+        session.pop("officer_ward", None)
         return redirect("/officer-login")
 
-    # 8. Status Update Action
+    # 8. Status Update Action (officer-only)
     elif target in ("update-status", "api/update-status") and request.method == "POST":
+        if not get_current_officer():
+            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"success": False, "error": "Unauthorized"}), 403
+            return redirect("/officer-login")
         return update_status()
 
-    # 9. Image Classification API
+    # 9. Image Classification API (rate-limited: 10 req/min per IP)
     elif target in ("classify", "api/classify") and request.method == "POST":
+        client_ip = request.remote_addr or "unknown"
+        if _is_rate_limited(f"classify:{client_ip}", max_calls=10, window_secs=60):
+            return jsonify({"success": False, "error": "Too many requests. Please wait a moment."}), 429
         return api_classify()
 
-    # 10. Citizen Submit Report Action
+    # 10. Citizen Submit Report Action (rate-limited: 5 submissions/min per IP)
     elif target in ("submit-report", "api/submit-report") and request.method == "POST":
+        client_ip = request.remote_addr or "unknown"
+        if _is_rate_limited(f"submit:{client_ip}", max_calls=5, window_secs=60):
+            citizen = get_current_citizen()
+            return render_template(
+                "report.html",
+                citizen=citizen,
+                success_message=None,
+                error_message="⚠️ Too many submissions. Please wait a moment before submitting again."
+            ), 429
         return submit_report()
 
     # 11. Static Fallbacks
@@ -591,43 +658,6 @@ def submit_report():
     )
 
 
-@app.route("/citizen-dashboard")
-def citizen_dashboard():
-    citizen = get_current_citizen()
-    if not citizen:
-        return redirect("/login")
-    citizen_reports = get_citizen_reports(citizen.get("phone"), citizen.get("name"))
-    total_count = len(citizen_reports)
-    pending_count = sum(1 for r in citizen_reports if r.get("status") == "Pending")
-    in_progress_count = sum(1 for r in citizen_reports if r.get("status") in ("Under Inspection", "In Progress"))
-    resolved_count = sum(1 for r in citizen_reports if r.get("status") in ("Cleaned & Resolved", "Resolved"))
-    stats = {
-        "total": total_count,
-        "pending": pending_count,
-        "in_progress": in_progress_count,
-        "resolved": resolved_count
-    }
-    resp = make_response(render_template(
-        "citizen_dashboard.html",
-        citizen=citizen,
-        reports=citizen_reports,
-        stats=stats
-    ))
-    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return resp
-
-
-@app.route("/citizen-logout")
-@app.route("/logout")
-def citizen_logout():
-    session.pop("citizen_phone", None)
-    session.pop("citizen_name", None)
-    session.pop("citizen_email", None)
-    resp = make_response(redirect("/login"))
-    resp.delete_cookie("citizen_phone")
-    resp.delete_cookie("citizen_name")
-    return resp
-
 
 @app.route("/update-status", methods=["POST"])
 def update_status():
@@ -640,6 +670,9 @@ def update_status():
 
     if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"success": success, "report_id": report_id, "new_status": new_status})
+
+    # Non-AJAX fallback: redirect back to officer dashboard
+    return redirect("/officer-dashboard")
 
 @app.route("/api/auth-health")
 def auth_health_route():

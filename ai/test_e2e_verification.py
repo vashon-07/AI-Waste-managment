@@ -3,17 +3,38 @@ import sys
 import json
 import io
 import sqlite3
+import tempfile
+import shutil
 
 # Ensure workspace root is in sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+import app as app_module
 from app import app
 from ai.classifier import get_classifier
 from ai.predict import predict_waste
 
 def main():
+    # ------------------------------------------------------------------
+    # Use a throwaway temp database so we never touch wastewatch.db
+    # ------------------------------------------------------------------
+    tmp_dir = tempfile.mkdtemp(prefix="wastewatch_test_")
+    tmp_db  = os.path.join(tmp_dir, "wastewatch_test.db")
+    original_db_path = app_module.DB_PATH
+    app_module.DB_PATH = tmp_db
+    app_module.init_db()   # create schema in temp DB
+
+    try:
+        _run_tests(tmp_db)
+    finally:
+        app_module.DB_PATH = original_db_path  # restore
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        print("\n[TEST] Temp database cleaned up.")
+
+
+def _run_tests(tmp_db: str):
     # Ensure ViT model pipeline is loaded
     classifier = get_classifier()
     classifier._load_pipeline_sync()
@@ -73,8 +94,8 @@ def main():
     print(f'Submit Report HTTP Status Code: {submit_response.status_code}')
 
     # Step 10: Verify SQLite Database Record
-    print('\n>>> [STEP 10] Verifying SQLite Database Record in wastewatch.db...')
-    conn = sqlite3.connect('wastewatch.db')
+    print('\n>>> [STEP 10] Verifying SQLite Database Record in temp test DB...')
+    conn = sqlite3.connect(tmp_db)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute('SELECT * FROM reports ORDER BY id DESC LIMIT 1')
