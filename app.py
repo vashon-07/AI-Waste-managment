@@ -245,7 +245,7 @@ def catch_all(path):
                 confirm_password = request.form.get("confirm_password", "")
 
                 if not phone.isdigit() or len(phone) != 10:
-                    return render_template("login.html", message="Mobile number must contain exactly 10 digits.", is_error=True)
+                    return render_template("login.html", message="Mobile number must contain exactly 10 digits.", is_error=True, default_tab="register")
 
                 if (
                     len(password) < 8
@@ -257,20 +257,21 @@ def catch_all(path):
                     return render_template(
                         "login.html",
                         message="Password must be at least 8 characters and include uppercase, lowercase, number, and special character.",
-                        is_error=True
+                        is_error=True,
+                        default_tab="register"
                     )
 
                 if password != confirm_password:
-                    return render_template("login.html", message="Passwords do not match. Please try again.", is_error=True)
+                    return render_template("login.html", message="Passwords do not match. Please try again.", is_error=True, default_tab="register")
 
                 user_profile, err = supabase_auth_signup(email, password, name, phone, role)
                 if not user_profile:
                     if err in ("connection_error", "service_error"):
-                        return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True)
+                        return render_template("login.html", message="Unable to connect to the authentication service. Please try again.", is_error=True, default_tab="register")
                     elif err:
-                        return render_template("login.html", message=err, is_error=True)
+                        return render_template("login.html", message=err, is_error=True, default_tab="register")
                     else:
-                        return render_template("login.html", message="Registration failed. Please try again.", is_error=True)
+                        return render_template("login.html", message="Registration failed. Please try again.", is_error=True, default_tab="register")
 
                 session["citizen_phone"] = user_profile.get("phone") or phone
                 session["citizen_name"] = user_profile.get("name") or name

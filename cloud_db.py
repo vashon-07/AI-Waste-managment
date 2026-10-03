@@ -491,18 +491,25 @@ def get_user_by_phone(phone):
 
 def supabase_auth_signup(email, password, name, phone, role="citizen"):
     """Register citizen account using Supabase Auth signUp().
+    Validates that neither email nor mobile number are already registered.
     After successful registration, creates a profile row in public.users.
     Does NOT store the password in public.users (kept strictly in Supabase Auth).
     Uses the Supabase Auth user's UUID as public.users.id if allowed by schema.
     Returns (user_profile_dict, error_status).
     """
     name = (name or "").strip()
-    phone = (phone or "").strip()
-    email = (email or "").strip().lower()
+    phone_clean = re.sub(r"\D", "", str(phone or ""))
+    email_clean = (email or "").strip().lower()
     role = (role or "citizen").strip().lower()
 
-    if not email or not password:
+    if not email_clean or not password:
         return None, "Email and password are required."
+
+    if "@" not in email_clean:
+        return None, "Please enter a valid email address."
+
+    if len(phone_clean) != 10:
+        return None, "Mobile number must contain exactly 10 digits."
 
     # In production (Vercel) or when Supabase is configured, enforce Supabase Auth
     if IS_VERCEL or is_supabase_enabled():
@@ -513,15 +520,60 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
             return None, err_msg
 
         try:
-            # 1. Attempt user creation via Admin API first (avoids email rate limits and auto-confirms)
+            # 1. Pre-check: Verify neither email nor mobile number is already registered
+            email_exists = False
+            phone_exists = False
+
+            # Check public.users table for matching email or phone
+            try:
+                check_url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{phone_clean},email.ilike.{email_clean})&select=id,email,phone"
+                check_resp = requests.get(check_url, headers=get_supabase_headers(), timeout=6)
+                if check_resp.status_code == 200 and check_resp.json():
+                    for row in check_resp.json():
+                        row_em = (row.get("email") or "").strip().lower()
+                        row_ph = re.sub(r"\D", "", str(row.get("phone") or ""))
+                        if row_em == email_clean:
+                            email_exists = True
+                        if phone_clean and row_ph == phone_clean:
+                            phone_exists = True
+            except Exception as e_chk:
+                print(f"[Supabase public.users Pre-check Warning]: {e_chk}")
+
+            # If not yet detected in public.users, also inspect auth.users via Admin API
+            if not (email_exists and phone_exists):
+                try:
+                    admin_users_url = f"{SUPABASE_URL}/auth/v1/admin/users?per_page=100"
+                    admin_users_resp = requests.get(admin_users_url, headers=get_supabase_headers(), timeout=6)
+                    if admin_users_resp.status_code == 200:
+                        data = admin_users_resp.json()
+                        user_list = data.get("users", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+                        for u in user_list:
+                            u_em = (u.get("email") or "").strip().lower()
+                            u_ph = re.sub(r"\D", "", str(u.get("user_metadata", {}).get("phone") or u.get("phone") or ""))
+                            if u_em == email_clean:
+                                email_exists = True
+                            if phone_clean and u_ph == phone_clean:
+                                phone_exists = True
+                except Exception as e_admin_chk:
+                    print(f"[Supabase Auth Admin Pre-check Warning]: {e_admin_chk}")
+
+            # Block duplicate accounts with descriptive messages
+            if email_exists and phone_exists:
+                return None, "An account with this email address and mobile number is already registered. Please sign in."
+            if email_exists:
+                return None, "This email address is already registered. Please sign in or use a different email."
+            if phone_exists:
+                return None, "This mobile number is already registered. Please sign in or use a different mobile number."
+
+            # 2. Attempt user creation via Admin API first (avoids email rate limits and auto-confirms)
             admin_url = f"{SUPABASE_URL}/auth/v1/admin/users"
             admin_payload = {
-                "email": email,
+                "email": email_clean,
                 "password": password,
                 "email_confirm": True,
                 "user_metadata": {
                     "name": name,
-                    "phone": phone,
+                    "phone": phone_clean,
                     "role": role
                 }
             }
@@ -533,15 +585,15 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 err_admin = resp.json() if resp.text else {}
                 err_msg = err_admin.get("msg") or err_admin.get("message") or ""
                 if "already registered" in err_msg.lower() or "already exists" in err_msg.lower():
-                    return None, "An account with this email already exists. Please sign in."
+                    return None, "This email address is already registered. Please sign in or use a different email."
 
                 signup_url = f"{SUPABASE_URL}/auth/v1/signup"
                 signup_payload = {
-                    "email": email,
+                    "email": email_clean,
                     "password": password,
                     "data": {
                         "name": name,
-                        "phone": phone,
+                        "phone": phone_clean,
                         "role": role
                     }
                 }
@@ -553,7 +605,7 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 auth_user = auth_data.get("user") if isinstance(auth_data.get("user"), dict) else auth_data
                 auth_id = auth_user.get("id") if isinstance(auth_user, dict) else None
 
-                # Requirement 7: Verify that the returned Supabase Auth user has an ID
+                # Verify that the returned Supabase Auth user has an ID
                 if not auth_id:
                     print(f"[Supabase Auth SignUp] Error: No user ID in response payload.")
                     return None, "Supabase authentication succeeded but returned no user ID."
@@ -568,12 +620,11 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 except Exception as e:
                     print(f"[Supabase Auth Admin Confirm] Error during auto-confirm: {e}")
 
-                # Requirement 8: Create corresponding profile row in public.users
-                # Note: Password is NOT stored in public.users per Requirement 5
+                # Create corresponding profile row in public.users
                 profile_payload = {
                     "name": name,
-                    "phone": phone,
-                    "email": email,
+                    "phone": phone_clean,
+                    "email": email_clean,
                     "password": "",
                     "role": role
                 }
@@ -589,23 +640,15 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 profile_inserted = prof_resp.status_code in (200, 201)
                 prof_err_detail = ""
 
-                # If public.users.id is BIGINT identity or user already exists, adapt safely
+                # If public.users.id is BIGINT identity or auto-increment, insert without ID
                 if not profile_inserted:
                     prof_err_detail = prof_resp.text[:160] if prof_resp.text else ""
-                    print(f"[Supabase public.users Insert] UUID insert failed ({prof_resp.status_code}): {prof_err_detail}. Adapting schema...")
-                    check_url = f"{SUPABASE_URL}/rest/v1/users?or=(phone.eq.{phone},email.ilike.{email})"
-                    check_res = requests.get(check_url, headers=get_supabase_headers(), timeout=6)
-                    if check_res.status_code == 200 and check_res.json():
-                        patch_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone}"
-                        patch_res = requests.patch(patch_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
-                        profile_inserted = patch_res.status_code in (200, 204)
-                        print(f"[Supabase public.users Patch] Status: {patch_res.status_code}")
-                    else:
-                        alt_res = requests.post(post_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
-                        profile_inserted = alt_res.status_code in (200, 201)
-                        if not profile_inserted:
-                            prof_err_detail = alt_res.text[:160] if alt_res.text else prof_err_detail
-                        print(f"[Supabase public.users Insert without ID] Status: {alt_res.status_code}")
+                    print(f"[Supabase public.users Insert] UUID insert failed ({prof_resp.status_code}): {prof_err_detail}. Retrying without ID...")
+                    alt_res = requests.post(post_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
+                    profile_inserted = alt_res.status_code in (200, 201)
+                    if not profile_inserted:
+                        prof_err_detail = alt_res.text[:160] if alt_res.text else prof_err_detail
+                    print(f"[Supabase public.users Insert without ID] Status: {alt_res.status_code}")
 
                 if not profile_inserted:
                     print(f"[Supabase public.users Error] Could not insert into public.users. Error: {prof_err_detail}")
@@ -616,8 +659,8 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 user_profile = {
                     "id": auth_id,
                     "name": name,
-                    "phone": phone,
-                    "email": email,
+                    "phone": phone_clean,
+                    "email": email_clean,
                     "role": role
                 }
                 return user_profile, None
@@ -632,7 +675,7 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 )
                 print(f"[Supabase Auth SignUp Failed] HTTP {resp.status_code}: {safe_msg}")
                 if "already registered" in safe_msg.lower() or "already exists" in safe_msg.lower():
-                    return None, "An account with this email already exists. Please sign in."
+                    return None, "This email address is already registered. Please sign in or use a different email."
                 if "rate limit" in safe_msg.lower():
                     return None, "Supabase email rate limit reached. Please wait 10-15 minutes or disable 'Confirm email' in Supabase Auth."
                 return None, safe_msg
@@ -647,17 +690,30 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
         init_cloud_db()
         conn = sqlite3.connect(LOCAL_DB_PATH)
         cursor = conn.cursor()
+
+        # Check for existing email or phone in local SQLite
+        cursor.execute("SELECT phone, email FROM users WHERE phone = ? OR LOWER(email) = ?", (phone_clean, email_clean))
+        existing_rows = cursor.fetchall()
+        email_exists = any(r[1] and r[1].strip().lower() == email_clean for r in existing_rows)
+        phone_exists = any(r[0] and re.sub(r"\D", "", str(r[0])) == phone_clean for r in existing_rows)
+
+        if email_exists and phone_exists:
+            conn.close()
+            return None, "An account with this email address and mobile number is already registered. Please sign in."
+        if email_exists:
+            conn.close()
+            return None, "This email address is already registered. Please sign in or use a different email."
+        if phone_exists:
+            conn.close()
+            return None, "This mobile number is already registered. Please sign in or use a different mobile number."
+
         cursor.execute("""
             INSERT INTO users (name, phone, email, password, role)
             VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(phone) DO UPDATE SET
-                name=excluded.name,
-                email=excluded.email,
-                role=excluded.role
-        """, (name, phone, email, "", role))
+        """, (name, phone_clean, email_clean, "", role))
         conn.commit()
         conn.close()
-        return {"name": name, "phone": phone, "email": email, "role": role}, None
+        return {"name": name, "phone": phone_clean, "email": email_clean, "role": role}, None
     except Exception as e:
         print(f"[Local SignUp Fallback Error]: {e}")
         return None, "service_error"

@@ -442,6 +442,12 @@
         switchToRegister.addEventListener("click", showRegister);
         switchToLogin.addEventListener("click", showLogin);
 
+        // Keep Create Account tab active when returning from registration validation or ?tab=register
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("tab") === "register" || "{{ default_tab }}" === "register") {
+            showRegister();
+        }
+
         // --- CONSTRAINTS VALIDATION ---
         const phoneInput = document.getElementById("reg-phone");
         const phoneHint = document.getElementById("phone-hint");
