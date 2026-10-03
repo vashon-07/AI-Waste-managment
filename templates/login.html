@@ -334,14 +334,19 @@
                 <div class="fp-modal-icon">&#128274;</div>
                 <h2 id="fp-title">Reset Password</h2>
                 <div class="fp-modal-info" style="font-size:13.5px; padding:12px 14px; margin-bottom:14px;">
-                    Enter your registered email or 10-digit mobile number and create a new password.
+                    Enter your registered email address and 10-digit mobile number, then set your new password.
                 </div>
 
                 <div id="fp-error" style="display:none; color:#b91c1c; background:#fef2f2; border:1.5px solid #fecaca; padding:10px 14px; border-radius:10px; font-size:13px; margin-bottom:12px; line-height:1.45;"></div>
 
                 <div class="fp-id-form">
-                    <label for="fp-identifier">Registered Email or 10-Digit Mobile</label>
-                    <input type="text" id="fp-identifier" placeholder="name@example.com or 10-digit mobile" autocomplete="username">
+                    <label for="fp-email">Registered Email Address</label>
+                    <input type="email" id="fp-email" placeholder="name@example.com" autocomplete="email" required>
+                </div>
+
+                <div class="fp-id-form" style="margin-top:12px;">
+                    <label for="fp-phone">Registered 10-Digit Mobile Number</label>
+                    <input type="tel" id="fp-phone" placeholder="10-digit number (e.g. 9876543210)" pattern="[0-9]{10}" maxlength="10" inputmode="numeric" autocomplete="tel" required>
                 </div>
 
                 <div class="fp-id-form" style="margin-top:12px;">
@@ -572,9 +577,10 @@
             var step1 = document.getElementById("fp-step1");
             var step2 = document.getElementById("fp-step2");
             var errBox = document.getElementById("fp-error");
+            var emailIn = document.getElementById("fp-email");
+            var phoneIn = document.getElementById("fp-phone");
             var newPw = document.getElementById("fp-new-password");
             var confPw = document.getElementById("fp-confirm-password");
-            var ident = document.getElementById("fp-identifier");
             var loginEmail = document.getElementById("login-email");
             var resetBtn = document.getElementById("fp-reset-btn");
 
@@ -587,18 +593,28 @@
             }
             if (newPw) newPw.value = "";
             if (confPw) confPw.value = "";
-            if (ident) {
-                var preVal = (loginEmail && loginEmail.value) ? loginEmail.value.trim() : "";
-                ident.value = preVal;
+            if (emailIn) emailIn.value = "";
+            if (phoneIn) phoneIn.value = "";
+
+            if (loginEmail && loginEmail.value) {
+                var preVal = loginEmail.value.trim();
+                if (preVal.indexOf("@") !== -1 && emailIn) {
+                    emailIn.value = preVal;
+                } else if (/^\d+$/.test(preVal) && phoneIn) {
+                    phoneIn.value = preVal;
+                }
             }
+
             if (resetBtn) {
                 resetBtn.disabled = false;
                 resetBtn.innerHTML = "&#128273; Reset Password";
             }
             overlay.classList.add("open");
             setTimeout(function () {
-                if (ident && !ident.value) {
-                    ident.focus();
+                if (emailIn && !emailIn.value) {
+                    emailIn.focus();
+                } else if (phoneIn && !phoneIn.value) {
+                    phoneIn.focus();
                 } else if (newPw) {
                     newPw.focus();
                 }
@@ -615,11 +631,13 @@
 
         window.fpBackToLogin = function (e) {
             if (e && e.preventDefault) e.preventDefault();
-            var ident = document.getElementById("fp-identifier");
+            var emailIn = document.getElementById("fp-email");
+            var phoneIn = document.getElementById("fp-phone");
             var loginEmail = document.getElementById("login-email");
             var loginPw = document.getElementById("login-password");
-            var idVal = ident ? ident.value.trim() : "";
-            if (loginEmail && idVal) loginEmail.value = idVal;
+            if (loginEmail) {
+                loginEmail.value = (emailIn && emailIn.value) ? emailIn.value.trim() : ((phoneIn && phoneIn.value) ? phoneIn.value.trim() : "");
+            }
             window.fpClose(e);
             if (loginPw) {
                 loginPw.value = "";
@@ -629,7 +647,8 @@
 
         window.doPasswordReset = function (e) {
             if (e && e.preventDefault) e.preventDefault();
-            var identIn = document.getElementById("fp-identifier");
+            var emailIn = document.getElementById("fp-email");
+            var phoneIn = document.getElementById("fp-phone");
             var newPwIn = document.getElementById("fp-new-password");
             var confPwIn = document.getElementById("fp-confirm-password");
             var errBox = document.getElementById("fp-error");
@@ -648,13 +667,20 @@
                 errBox.style.display = "none";
             }
 
-            var ident = identIn ? identIn.value.trim() : "";
+            var emailVal = emailIn ? emailIn.value.trim().toLowerCase() : "";
+            var phoneVal = phoneIn ? phoneIn.value.trim().replace(/\D/g, "") : "";
             var newPw = newPwIn ? newPwIn.value : "";
             var confPw = confPwIn ? confPwIn.value : "";
 
-            if (!ident) {
-                showErr("Please enter your registered email address or 10-digit mobile number.");
-                if (identIn) identIn.focus();
+            if (!emailVal || emailVal.indexOf("@") === -1) {
+                showErr("Please enter a valid registered email address.");
+                if (emailIn) emailIn.focus();
+                return;
+            }
+
+            if (phoneVal.length !== 10) {
+                showErr("Please enter a valid 10-digit registered mobile number.");
+                if (phoneIn) phoneIn.focus();
                 return;
             }
 
@@ -690,7 +716,8 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    identifier: ident,
+                    email: emailVal,
+                    phone: phoneVal,
                     new_password: newPw,
                     confirm_password: confPw
                 })
@@ -735,6 +762,13 @@
         var fpResetBtn = document.getElementById("fp-reset-btn");
         if (fpResetBtn) fpResetBtn.addEventListener("click", window.doPasswordReset);
 
+        var fpPhone = document.getElementById("fp-phone");
+        if (fpPhone) {
+            fpPhone.addEventListener("input", function () {
+                this.value = this.value.replace(/[^0-9]/g, "");
+            });
+        }
+
         var fpOverlay = document.getElementById("fp-overlay");
         if (fpOverlay) {
             fpOverlay.addEventListener("click", function (e) {
@@ -749,7 +783,7 @@
             }
         });
 
-        ["fp-identifier", "fp-new-password", "fp-confirm-password"].forEach(function (id) {
+        ["fp-email", "fp-phone", "fp-new-password", "fp-confirm-password"].forEach(function (id) {
             var inp = document.getElementById(id);
             if (inp) {
                 inp.addEventListener("keydown", function (e) {

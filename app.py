@@ -314,17 +314,24 @@ def catch_all(path):
     elif target in ("forgot-password", "api/forgot-password", "reset-password", "api/reset-password"):
         if request.method == "POST":
             data = request.get_json(silent=True) or request.form
-            identifier = (data.get("identifier") or data.get("email") or "").strip()
+            email = (data.get("email") or "").strip().lower()
+            phone = (data.get("phone") or "").strip()
             new_password = data.get("new_password") or data.get("password") or ""
             confirm_password = data.get("confirm_password") or ""
 
-            if not identifier or not new_password:
-                return jsonify({"success": False, "message": "Identifier and new password are required."}), 400
+            if not email:
+                return jsonify({"success": False, "message": "Registered email address is required."}), 400
+
+            if not phone:
+                return jsonify({"success": False, "message": "Registered 10-digit mobile number is required."}), 400
+
+            if not new_password:
+                return jsonify({"success": False, "message": "New password is required."}), 400
 
             if confirm_password and new_password != confirm_password:
                 return jsonify({"success": False, "message": "Passwords do not match. Please re-enter."}), 400
 
-            success, message = supabase_auth_reset_password(identifier, new_password)
+            success, message = supabase_auth_reset_password(email, phone, new_password)
             status_code = 200 if success else 400
             return jsonify({"success": success, "message": message}), status_code
 
