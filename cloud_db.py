@@ -532,16 +532,11 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 if chk_em_resp.status_code == 200 and chk_em_resp.json():
                     email_exists = True
 
-                # 2. Check phone (both exact clean_phone and trailing 10-digit match)
+                # 2. Check phone
                 chk_ph_url = f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone_clean}&select=id,email,phone"
                 chk_ph_resp = requests.get(chk_ph_url, headers=get_supabase_headers(), timeout=6)
                 if chk_ph_resp.status_code == 200 and chk_ph_resp.json():
                     phone_exists = True
-                elif phone_clean:
-                    chk_ph_wildcard = f"{SUPABASE_URL}/rest/v1/users?phone=ilike.*{phone_clean}&select=id,email,phone"
-                    chk_ph_w_resp = requests.get(chk_ph_wildcard, headers=get_supabase_headers(), timeout=6)
-                    if chk_ph_w_resp.status_code == 200 and chk_ph_w_resp.json():
-                        phone_exists = True
             except Exception as e_chk:
                 print(f"[Supabase public.users Pre-check Warning]: {e_chk}")
 
@@ -646,33 +641,32 @@ def supabase_auth_signup(email, password, name, phone, role="citizen"):
                 profile_inserted = prof_resp.status_code in (200, 201)
                 prof_err_detail = ""
 
-                # If public.users.id is BIGINT identity or auto-increment, insert without ID
+                # If UUID insert failed (e.g. public.users.id is BIGINT identity or auto-increment, or row was created by trigger)
                 if not profile_inserted:
                     prof_err_detail = prof_resp.text[:160] if prof_resp.text else ""
-                    print(f"[Supabase public.users Insert] UUID insert failed ({prof_resp.status_code}): {prof_err_detail}. Retrying without ID...")
+                    print(f"[Supabase public.users Insert] UUID insert failed ({prof_resp.status_code}): {prof_err_detail}. Retrying...")
                     alt_res = requests.post(post_url, json=profile_payload, headers=get_supabase_headers(), timeout=6)
                     profile_inserted = alt_res.status_code in (200, 201)
                     if not profile_inserted:
                         prof_err_detail = alt_res.text[:160] if alt_res.text else prof_err_detail
-                    print(f"[Supabase public.users Insert without ID] Status: {alt_res.status_code}")
+                        print(f"[Supabase public.users Insert without ID] Status: {alt_res.status_code} ({prof_err_detail})")
+
+                    # If insert failed because row was already auto-created by Supabase trigger, update/sync the row
+                    if not profile_inserted:
+                        check_ph = requests.get(f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone_clean}", headers=get_supabase_headers(), timeout=6)
+                        if check_ph.status_code == 200 and check_ph.json():
+                            patch_res = requests.patch(f"{SUPABASE_URL}/rest/v1/users?phone=eq.{phone_clean}", json=profile_payload, headers=get_supabase_headers(), timeout=6)
+                            profile_inserted = patch_res.status_code in (200, 204)
+                            print(f"[Supabase public.users Sync] Updated row for phone {phone_clean}: {patch_res.status_code}")
+                        else:
+                            check_em = requests.get(f"{SUPABASE_URL}/rest/v1/users?email=ilike.{email_clean}", headers=get_supabase_headers(), timeout=6)
+                            if check_em.status_code == 200 and check_em.json():
+                                patch_res = requests.patch(f"{SUPABASE_URL}/rest/v1/users?email=ilike.{email_clean}", json=profile_payload, headers=get_supabase_headers(), timeout=6)
+                                profile_inserted = patch_res.status_code in (200, 204)
+                                print(f"[Supabase public.users Sync] Updated row for email {email_clean}: {patch_res.status_code}")
 
                 if not profile_inserted:
-                    print(f"[Supabase public.users Error] Could not insert into public.users. Error: {prof_err_detail}")
-                    # Intercept duplicate key violations on public.users and roll back the auth record
-                    if "users_phone_key" in prof_err_detail.lower() or "key (phone)=" in prof_err_detail.lower() or ("phone" in prof_err_detail.lower() and "already exists" in prof_err_detail.lower()):
-                        try:
-                            requests.delete(f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}", headers=get_supabase_headers(), timeout=5)
-                        except Exception:
-                            pass
-                        return None, "This mobile number is already registered. Please sign in or use a different mobile number."
-
-                    if "users_email_key" in prof_err_detail.lower() or "key (email)=" in prof_err_detail.lower() or ("email" in prof_err_detail.lower() and "already exists" in prof_err_detail.lower()):
-                        try:
-                            requests.delete(f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}", headers=get_supabase_headers(), timeout=5)
-                        except Exception:
-                            pass
-                        return None, "This email address is already registered. Please sign in or use a different email."
-
+                    print(f"[Supabase public.users Error] Could not insert or sync public.users. Error: {prof_err_detail}")
                     if "row-level security" in prof_err_detail.lower() or prof_resp.status_code in (401, 403):
                         return None, "Supabase Row-Level Security (RLS) blocked the user profile insert. Ensure SUPABASE_SERVICE_ROLE_KEY is used or RLS is configured on public.users."
                     return None, f"Registration failed: {prof_err_detail}"
