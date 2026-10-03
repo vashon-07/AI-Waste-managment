@@ -320,6 +320,8 @@ def insert_report(data):
     raw_lat = data.get("latitude")
     raw_lng = data.get("longitude")
 
+    print(f"[DB] insert_report called with image_path present: {bool(image_path)}, coords: ({raw_lat}, {raw_lng})")
+
     if not image_path or raw_lat is None or raw_lng is None:
         print("[DB Error] Refusing to insert report without valid image_path or GPS coordinates")
         return False

@@ -571,6 +571,8 @@ def api_classify():
 
 @app.route("/submit-report", methods=["POST"])
 def submit_report():
+    print(f"[SUBMISSION] Report submission route reached. Method: {request.method}")
+
     reporter_name = request.form.get("reporter_name", "Anonymous Citizen").strip() or "Anonymous Citizen"
     reporter_phone = request.form.get("reporter_phone", "").strip()
     description = request.form.get("description", "").strip()
@@ -584,16 +586,21 @@ def submit_report():
     image_path = None
     image_bytes = None
 
-    # Priority 0: Cloudinary URL uploaded by browser before form submit
+    has_uploaded_file = bool(image and image.filename)
     cloudinary_url = request.form.get("cloudinary_image_url", "").strip()
-    if cloudinary_url and cloudinary_url.startswith("https://res.cloudinary.com/"):
+    has_cloudinary = bool(cloudinary_url and cloudinary_url.startswith("https://res.cloudinary.com/"))
+
+    print(f"[SUBMISSION] image present: {has_uploaded_file or has_cloudinary} (file: {has_uploaded_file}, cloudinary: {has_cloudinary})")
+
+    # Priority 0: Cloudinary URL uploaded by browser before form submit
+    if has_cloudinary:
         image_path = cloudinary_url
-        if image and image.filename:
+        if has_uploaded_file:
             try:
                 image_bytes = image.read()
             except Exception:
                 pass
-    elif image and image.filename:
+    elif has_uploaded_file:
         # Convert image to data URL so it displays permanently across serverless instances
         try:
             image_bytes = image.read()
@@ -604,54 +611,69 @@ def submit_report():
         except Exception:
             image_path = None
 
+    has_image_path = bool(image_path)
+    print(f"[SUBMISSION] image_path present: {has_image_path}")
+
     if not image_path:
+        print("[SUBMISSION] report rejected: image_path is missing or empty")
         citizen = get_current_citizen()
         return render_template(
             "report.html",
             citizen=citizen,
-            error_message="Waste image is required. Please upload or capture an image before submitting."
+            error_message="Waste image is required. Please upload or capture an image."
         )
 
     # --- Step 2: GPS Location Validation (Mandatory) ---
     latitude = request.form.get("latitude")
     longitude = request.form.get("longitude")
 
-    if not latitude or not longitude or not str(latitude).strip() or not str(longitude).strip():
+    has_lat = bool(latitude and str(latitude).strip())
+    has_lng = bool(longitude and str(longitude).strip())
+    print(f"[SUBMISSION] latitude present: {has_lat}, longitude present: {has_lng}")
+
+    if not has_lat or not has_lng:
+        print("[SUBMISSION] report rejected: latitude or longitude is missing")
         citizen = get_current_citizen()
         return render_template(
             "report.html",
             citizen=citizen,
-            error_message="Location is required. Please allow GPS/location access and try again."
+            error_message="Location is required. Please allow location access and try again."
         )
 
     try:
         lat = round(float(latitude), 7)
         lng = round(float(longitude), 7)
     except (ValueError, TypeError):
+        print(f"[SUBMISSION] report rejected: latitude/longitude validity: Non-numeric")
         citizen = get_current_citizen()
         return render_template(
             "report.html",
             citizen=citizen,
-            error_message="Location is required. Please allow GPS/location access and try again."
+            error_message="Location is required. Please allow location access and try again."
         )
 
     # Validate coordinate ranges (-90 to 90, -180 to 180)
     if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+        print(f"[SUBMISSION] report rejected: latitude/longitude validity: Out of range ({lat}, {lng})")
         citizen = get_current_citizen()
         return render_template(
             "report.html",
             citizen=citizen,
-            error_message="Location is required. Please allow GPS/location access and try again."
+            error_message="Location is required. Please allow location access and try again."
         )
 
     # Reject dummy default coordinates (17.6868, 83.2185)
     if round(lat, 4) == 17.6868 and round(lng, 4) == 83.2185:
+        print(f"[SUBMISSION] report rejected: latitude/longitude validity: Default dummy coordinates ({lat}, {lng})")
         citizen = get_current_citizen()
         return render_template(
             "report.html",
             citizen=citizen,
-            error_message="Location is required. Please allow GPS/location access and try again."
+            error_message="Location is required. Please allow location access and try again."
         )
+
+    print(f"[SUBMISSION] latitude/longitude validity: Valid ({lat}, {lng})")
+    print(f"[SUBMISSION] report accepted: all validations passed")
 
     # --- Priority 1: browser-side Transformers.js classification ---
     # The report form now submits hidden fields populated by browser AI.

@@ -92,7 +92,7 @@
 
                     <!-- Image validation error message -->
                     <div id="image-error" style="display: none; background: #fef2f2; color: #991b1b; padding: 12px 16px; border-radius: 10px; border: 1.5px solid #fca5a5; margin-bottom: 12px; font-weight: 600; font-size: 14px; text-align: center;">
-                        ⚠️ Waste image is required. Please upload or capture an image before submitting.
+                        ⚠️ Waste image is required. Please upload or capture an image.
                     </div>
 
                     <div class="upload-box">
@@ -326,7 +326,7 @@
 
     <!-- Location validation error message -->
     <div id="location-error" style="display: none; background: #fef2f2; color: #991b1b; padding: 12px 16px; border-radius: 10px; border: 1.5px solid #fca5a5; margin-bottom: 12px; font-weight: 600; font-size: 14px; text-align: center;">
-        ⚠️ Location is required. Please allow GPS/location access and try again.
+        ⚠️ Location is required. Please allow location access and try again.
     </div>
 
     <div class="location-input">
@@ -1544,7 +1544,7 @@ usePhotoButton.addEventListener(
             // ── STEP 1: IMAGE IS MANDATORY ──
             if (!file) {
                 if (imageError) {
-                    imageError.textContent = "⚠️ Waste image is required. Please upload or capture an image before submitting.";
+                    imageError.textContent = "⚠️ Waste image is required. Please upload or capture an image.";
                     imageError.style.display = "block";
                     imageError.scrollIntoView({ behavior: "smooth", block: "center" });
                 }
@@ -1557,7 +1557,7 @@ usePhotoButton.addEventListener(
 
             if (!isCoordinateValid(latVal, lngVal)) {
                 if (locationError) {
-                    locationError.textContent = "⚠️ Location is required. Please allow GPS/location access and try again.";
+                    locationError.textContent = "⚠️ Location is required. Please allow location access and try again.";
                     locationError.style.display = "block";
                     locationError.scrollIntoView({ behavior: "smooth", block: "center" });
                 }
