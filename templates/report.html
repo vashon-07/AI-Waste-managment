@@ -437,6 +437,11 @@
                 <!-- autocomplete=off + JS reset on load prevents browser from restoring a stale URL. -->
                 <input type="hidden" id="cloudinary_image_url" name="cloudinary_image_url" autocomplete="off">
 
+                <!-- Sentinel: set to '1' ONLY by JS when user actively selects/captures an image.
+                     Server checks this as proof a new image was provided in this submission.
+                     autocomplete=off + cleared on load = browser cannot restore a stale '1'. -->
+                <input type="hidden" id="_image_provided" name="_image_provided" value="" autocomplete="off">
+
                 <!-- Cloudinary upload status (shown while uploading) -->
                 <div id="cloudinary-status" style="display:none; margin-top:10px; padding:10px 14px; border-radius:10px; font-size:13px; background:#eff6ff; border:1.5px solid #3b82f6; color:#1d4ed8;"></div>
 
@@ -988,6 +993,9 @@ const usePhotoButton =
 
     // Mark that user has captured an image in this session
     imageSelectedThisSession = true;
+    // Set server-side sentinel
+    const _ipCap = document.getElementById("_image_provided");
+    if (_ipCap) _ipCap.value = "1";
 
     // Trigger instant AI classification
     triggerLiveClassification(file);
@@ -1094,6 +1102,9 @@ const usePhotoButton =
 
             // Mark that user has selected an image in this session
             imageSelectedThisSession = true;
+            // Set server-side sentinel
+            const _ipSel = document.getElementById("_image_provided");
+            if (_ipSel) _ipSel.value = "1";
 
             // Trigger instant AI classification
             triggerLiveClassification(file);
@@ -1498,10 +1509,11 @@ usePhotoButton.addEventListener(
 
     // ── SECURITY: Clear all sensitive hidden fields on page load ──
     // Prevents browser form-restoration / autocomplete from injecting stale
-    // Cloudinary URLs from a previous session, which would bypass image validation.
+    // values from a previous session, which would bypass image validation.
     (function clearSensitiveFields() {
         const fieldsToClear = [
             "cloudinary_image_url",
+            "_image_provided",
             "browser_waste_type",
             "browser_raw_label",
             "browser_severity",
@@ -1519,7 +1531,6 @@ usePhotoButton.addEventListener(
     let cloudinaryUploadDone = false;
 
     // Track whether an image was selected/captured in THIS session.
-    // Used to detect stale Cloudinary URLs injected by browser.
     let imageSelectedThisSession = false;
 
     function showCloudinaryStatus2(msg, color) {
@@ -1572,13 +1583,15 @@ usePhotoButton.addEventListener(
             if (locationError) locationError.style.display = "none";
 
             // ── STEP 1: IMAGE IS MANDATORY ──
-            // Check BOTH the file input AND the session flag.
-            // imageSelectedThisSession is only set true when user actually picks/captures an image.
-            // This prevents a stale cloudinary_image_url from silently passing validation.
-            if (!file && !imageSelectedThisSession) {
-                // Also clear any stale Cloudinary URL that may have snuck in
+            // Require BOTH: a file in the input AND the session flag set by the change/capture handler.
+            // imageSelectedThisSession is only true when the user ACTIVELY picked/captured an image.
+            // This blocks any stale cloudinary_image_url restored by browser bfcache/autofill.
+            if (!file || !imageSelectedThisSession) {
+                // Clear any stale Cloudinary URL and sentinel
                 const cloudField = document.getElementById("cloudinary_image_url");
                 if (cloudField) cloudField.value = "";
+                const sentinelField = document.getElementById("_image_provided");
+                if (sentinelField) sentinelField.value = "";
 
                 if (imageError) {
                     imageError.textContent = "⚠️ Waste image is required. Please upload or capture an image.";
