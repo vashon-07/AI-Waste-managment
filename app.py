@@ -208,32 +208,45 @@ def analyze_waste_ai(description, filename=""):
 
 # ---------------------------------------------------------------------------
 # Authorized Municipal Officer accounts
-# Passwords are read from environment variables first; the hardcoded values
-# act as a fallback so the site keeps working without any env changes.
-# To override, set e.g.  OFFICER_PW_DEFAULT=MySecurePass  in your .env
+# Each officer has a UNIQUE password, controlled by environment variables.
+# The hardcoded values are secure defaults so the site works out of the box.
+# To override, set the matching env var in your .env file, e.g.:
+#   OFFICER_PW_RAJESH=MyNewPass1!
+#   OFFICER_PW_SUNITA=MyNewPass2@
+#   OFFICER_PW_COMMISSIONER=MyNewPass3#
 # ---------------------------------------------------------------------------
-_DEFAULT_PW  = os.environ.get("OFFICER_PW_DEFAULT",  "Officer@123")
-_ADMIN_PW    = os.environ.get("OFFICER_PW_ADMIN",    "Officer@2026")
-_MUNI7082_PW = os.environ.get("OFFICER_PW_MUNI7082", "Officer@123")
+
+# Officer 1 – Chief Officer Rajesh Sharma  (2 login aliases, same person)
+_PW_RAJESH       = os.environ.get("OFFICER_PW_RAJESH",       "Rajesh@Ward1#26")
+
+# Officer 2 – Inspector Sunita Reddy
+_PW_SUNITA       = os.environ.get("OFFICER_PW_SUNITA",       "Sunita@North2$26")
+
+# Officer 3 – Commissioner K. Rao  (admin / all-wards)
+_PW_COMMISSIONER = os.environ.get("OFFICER_PW_COMMISSIONER", "KRao@AllWards!26")
 
 OFFICER_ACCOUNTS = {
+    # Chief Officer Rajesh Sharma – login alias 1
     "officer@municipality.gov.in": {
-        "password": _DEFAULT_PW,
+        "password": _PW_RAJESH,
         "name": "Chief Officer Rajesh Sharma",
         "ward": "Ward 1 - Central Zone"
     },
+    # Chief Officer Rajesh Sharma – login alias 2
     "officer123": {
-        "password": _DEFAULT_PW,
+        "password": _PW_RAJESH,
         "name": "Chief Officer Rajesh Sharma",
         "ward": "Ward 1 - Central Zone"
     },
+    # Inspector Sunita Reddy
     "muni-7082": {
-        "password": _MUNI7082_PW,
+        "password": _PW_SUNITA,
         "name": "Inspector Sunita Reddy",
         "ward": "Ward 2 - North Zone"
     },
+    # Commissioner K. Rao
     "admin@wastewatch.gov.in": {
-        "password": _ADMIN_PW,
+        "password": _PW_COMMISSIONER,
         "name": "Commissioner K. Rao",
         "ward": "All Wards (Central Command)"
     }
