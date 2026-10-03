@@ -316,17 +316,32 @@ def get_citizen_reports(reporter_phone=None, reporter_name=None):
 
 def insert_report(data):
     """Insert a new citizen report into Supabase (or fallback to SQLite)."""
+    image_path = data.get("image_path")
+    raw_lat = data.get("latitude")
+    raw_lng = data.get("longitude")
+
+    if not image_path or raw_lat is None or raw_lng is None:
+        print("[DB Error] Refusing to insert report without valid image_path or GPS coordinates")
+        return False
+
+    try:
+        lat = float(raw_lat)
+        lng = float(raw_lng)
+    except (ValueError, TypeError):
+        print("[DB Error] Invalid numeric coordinates for report")
+        return False
+
     if is_supabase_enabled():
         try:
             url = f"{SUPABASE_URL}/rest/v1/reports"
             payload = {
                 "reporter_name": data.get("reporter_name", "Anonymous Citizen"),
                 "reporter_phone": data.get("reporter_phone", ""),
-                "image_path": data.get("image_path", ""),
+                "image_path": image_path,
                 "description": data.get("description", ""),
                 "address": data.get("address", ""),
-                "latitude": float(data.get("latitude", 17.6868)),
-                "longitude": float(data.get("longitude", 83.2185)),
+                "latitude": lat,
+                "longitude": lng,
                 "waste_type": data.get("waste_type", "Mixed Municipal Waste"),
                 "raw_label": data.get("raw_label", ""),
                 "severity": data.get("severity", "Medium"),
@@ -355,15 +370,15 @@ def insert_report(data):
         """, (
             data.get("reporter_name", "Anonymous Citizen"),
             data.get("reporter_phone", ""),
-            data.get("image_path", ""),
+            image_path,
             data.get("description", ""),
             data.get("address", ""),
-            data.get("latitude", 17.6868),
-            data.get("longitude", 83.2185),
-            data.get("waste_type", "Mixed Municipal"),
+            lat,
+            lng,
+            data.get("waste_type", "Mixed Municipal Waste"),
             data.get("raw_label", ""),
             data.get("severity", "Medium"),
-            data.get("priority_score", 50.0),
+            float(data.get("priority_score", 50.0)),
             "Pending"
         ))
         conn.commit()

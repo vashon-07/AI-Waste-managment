@@ -578,33 +578,16 @@ def submit_report():
         request.form.get("address", "").strip()
         or request.form.get("location", "").strip()
     )
-    latitude = request.form.get("latitude")
-    longitude = request.form.get("longitude")
 
-    # Validate GPS coordinates – both latitude and longitude must be provided
-    if not latitude or not longitude:
-        citizen = get_current_citizen()
-        return render_template(
-            "report.html",
-            citizen=citizen,
-            error_message="⚠️ Upload an Image and provide GPS location to submit report"
-        )
-    # Existing conversion logic remains unchanged
-    try:
-        lat = round(float(latitude), 7) if latitude else 17.6868
-        lng = round(float(longitude), 7) if longitude else 83.2185
-    except (ValueError, TypeError):
-        lat, lng = 17.6868, 83.2185
-
+    # --- Step 1: Image Validation (Mandatory) ---
     image = request.files.get("image")
     image_path = None
     image_bytes = None
 
-    # --- Priority 0: Cloudinary URL uploaded by browser before form submit ---
+    # Priority 0: Cloudinary URL uploaded by browser before form submit
     cloudinary_url = request.form.get("cloudinary_image_url", "").strip()
     if cloudinary_url and cloudinary_url.startswith("https://res.cloudinary.com/"):
         image_path = cloudinary_url
-        # Still read image_bytes for AI fallback classification if needed
         if image and image.filename:
             try:
                 image_bytes = image.read()
@@ -622,12 +605,52 @@ def submit_report():
             image_path = None
 
     if not image_path:
-        # No image provided — reject the report
         citizen = get_current_citizen()
         return render_template(
             "report.html",
             citizen=citizen,
-            error_message="⚠️ Upload an Image to submit report"
+            error_message="Waste image is required. Please upload or capture an image before submitting."
+        )
+
+    # --- Step 2: GPS Location Validation (Mandatory) ---
+    latitude = request.form.get("latitude")
+    longitude = request.form.get("longitude")
+
+    if not latitude or not longitude or not str(latitude).strip() or not str(longitude).strip():
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message="Location is required. Please allow GPS/location access and try again."
+        )
+
+    try:
+        lat = round(float(latitude), 7)
+        lng = round(float(longitude), 7)
+    except (ValueError, TypeError):
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message="Location is required. Please allow GPS/location access and try again."
+        )
+
+    # Validate coordinate ranges (-90 to 90, -180 to 180)
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message="Location is required. Please allow GPS/location access and try again."
+        )
+
+    # Reject dummy default coordinates (17.6868, 83.2185)
+    if round(lat, 4) == 17.6868 and round(lng, 4) == 83.2185:
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message="Location is required. Please allow GPS/location access and try again."
         )
 
     # --- Priority 1: browser-side Transformers.js classification ---

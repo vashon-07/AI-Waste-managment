@@ -92,7 +92,7 @@
 
                     <!-- Image validation error message -->
                     <div id="image-error" style="display: none; background: #fef2f2; color: #991b1b; padding: 12px 16px; border-radius: 10px; border: 1.5px solid #fca5a5; margin-bottom: 12px; font-weight: 600; font-size: 14px; text-align: center;">
-                        ⚠️ Upload an Image to submit report
+                        ⚠️ Waste image is required. Please upload or capture an image before submitting.
                     </div>
 
                     <div class="upload-box">
@@ -320,9 +320,14 @@
               <div class="form-section">
 
     <label for="location" style="display: flex; justify-content: space-between; align-items: center;">
-        <span>📍 Precise Location</span>
+        <span>📍 Precise Location <span style="color: #ef4444; font-weight: 700;">*</span></span>
         <span style="font-size: 12px; color: #6b7280; font-weight: normal;">Editable • House/Street/Landmark</span>
     </label>
+
+    <!-- Location validation error message -->
+    <div id="location-error" style="display: none; background: #fef2f2; color: #991b1b; padding: 12px 16px; border-radius: 10px; border: 1.5px solid #fca5a5; margin-bottom: 12px; font-weight: 600; font-size: 14px; text-align: center;">
+        ⚠️ Location is required. Please allow GPS/location access and try again.
+    </div>
 
     <div class="location-input">
         <input
@@ -981,6 +986,9 @@ const usePhotoButton =
 
     // Trigger instant AI classification
     triggerLiveClassification(file);
+
+    const imgErr = document.getElementById("image-error");
+    if (imgErr) imgErr.style.display = "none";
 });
 
 
@@ -1081,6 +1089,9 @@ const usePhotoButton =
 
             // Trigger instant AI classification
             triggerLiveClassification(file);
+
+            const imgErr = document.getElementById("image-error");
+            if (imgErr) imgErr.style.display = "none";
         }
 
     });
@@ -1250,6 +1261,9 @@ const usePhotoButton =
 
                     detectLocationButton.textContent = "✓ Location Detected";
                     detectLocationButton.disabled = false;
+
+                    const locErr = document.getElementById("location-error");
+                    if (locErr) locErr.style.display = "none";
                 },
                 function (error) {
                     console.error("Location error:", error);
@@ -1278,6 +1292,15 @@ const usePhotoButton =
                 }
             );
         });
+
+        // Automatically request browser geolocation on page load if coordinates not already set
+        if (navigator.geolocation && (!latitudeInput || !latitudeInput.value)) {
+            setTimeout(function () {
+                if (detectLocationButton) {
+                    detectLocationButton.click();
+                }
+            }, 600);
+        }
     }
 
     /* =======================================================
@@ -1401,6 +1424,9 @@ const usePhotoButton =
                 accuracyBadge.innerHTML = `🎯 Exact spot manually pinned on map [${selectedLatitude.toFixed(5)}, ${selectedLongitude.toFixed(5)}]`;
             }
 
+            const locErr = document.getElementById("location-error");
+            if (locErr) locErr.style.display = "none";
+
             if (mapModal) mapModal.style.display = "none";
         });
     }
@@ -1481,44 +1507,84 @@ usePhotoButton.addEventListener(
                                             : color === "yellow" ? "#92400e" : "#1d4ed8";
     }
 
+    function isCoordinateValid(lat, lng) {
+        if (lat === null || lat === undefined || lng === null || lng === undefined) return false;
+        const sLat = String(lat).trim();
+        const sLng = String(lng).trim();
+        if (!sLat || !sLng) return false;
+        const nLat = parseFloat(sLat);
+        const nLng = parseFloat(sLng);
+        if (isNaN(nLat) || isNaN(nLng)) return false;
+        if (nLat < -90 || nLat > 90 || nLng < -180 || nLng > 180) return false;
+        // Reject default dummy coordinates (17.6868, 83.2185)
+        if (Math.abs(nLat - 17.6868) < 0.0001 && Math.abs(nLng - 83.2185) < 0.0001) return false;
+        return true;
+    }
+
     if (reportForm2) {
         reportForm2.addEventListener("submit", async function (e) {
 
             // Guard: if upload already done, let native submit through.
             if (cloudinaryUploadDone) return;
 
-            const fileInput  = document.getElementById("waste-image");
-            const file       = fileInput && fileInput.files && fileInput.files[0];
-            const imageError = document.getElementById("image-error");
+            // Immediately halt default browser submit to perform mandatory validations
+            e.preventDefault();
 
-            // ── IMAGE REQUIRED VALIDATION ──
-            // Block submission if no image was uploaded or captured.
+            const fileInput     = document.getElementById("waste-image");
+            const file          = fileInput && fileInput.files && fileInput.files[0];
+            const imageError    = document.getElementById("image-error");
+            const locationError = document.getElementById("location-error");
+            const latField      = document.getElementById("latitude");
+            const lngField      = document.getElementById("longitude");
+
+            // Hide previous errors
+            if (imageError) imageError.style.display = "none";
+            if (locationError) locationError.style.display = "none";
+
+            // ── STEP 1: IMAGE IS MANDATORY ──
             if (!file) {
-                e.preventDefault();
                 if (imageError) {
+                    imageError.textContent = "⚠️ Waste image is required. Please upload or capture an image before submitting.";
                     imageError.style.display = "block";
                     imageError.scrollIntoView({ behavior: "smooth", block: "center" });
                 }
                 return;
             }
 
-            // Hide error if image is present
-            if (imageError) imageError.style.display = "none";
+            // ── STEP 2: GPS LOCATION IS MANDATORY ──
+            const latVal = latField ? latField.value : "";
+            const lngVal = lngField ? lngField.value : "";
 
-            // Ensure browser AI classification is guaranteed before submitting
-            if (file && typeof window.ensureAiClassification === "function") {
-                await window.ensureAiClassification(file);
+            if (!isCoordinateValid(latVal, lngVal)) {
+                if (locationError) {
+                    locationError.textContent = "⚠️ Location is required. Please allow GPS/location access and try again.";
+                    locationError.style.display = "block";
+                    locationError.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+                // Try auto-triggering GPS detection if button is available
+                if (detectLocationButton && typeof performGpsDetection === "function") {
+                    detectLocationButton.click();
+                }
+                return;
             }
 
-            // Halt the browser POST so we can upload to Cloudinary first.
-            e.preventDefault();
+            // ── STEP 3: BROWSER AI CLASSIFICATION ──
+            if (file && typeof window.ensureAiClassification === "function") {
+                try {
+                    await window.ensureAiClassification(file);
+                } catch (aiErr) {
+                    console.warn("[Browser AI] classification error:", aiErr);
+                }
+            }
 
+            // ── STEP 4: UPLOAD IMAGE TO CLOUDINARY ──
             if (submitBtn2) {
                 submitBtn2.disabled    = true;
-                submitBtn2.textContent = "\u23F3 Uploading image to cloud...";
+                submitBtn2.textContent = "⏳ Uploading image to cloud...";
             }
-            showCloudinaryStatus2("\u2601\uFE0F Uploading image to Cloudinary...", "blue");
+            showCloudinaryStatus2("☁️ Uploading image to Cloudinary...", "blue");
 
+            let uploadSuccess = false;
             try {
                 const fd = new FormData();
                 fd.append("file",          file);
@@ -1532,25 +1598,40 @@ usePhotoButton.addEventListener(
                 if (res.ok && data.secure_url) {
                     if (cloudinaryField2) cloudinaryField2.value = data.secure_url;
                     console.log("[Cloudinary] Upload success:", data.secure_url);
-                    showCloudinaryStatus2("\u2705 Cloudinary upload OK. Submitting report...", "green");
+                    showCloudinaryStatus2("✅ Cloudinary upload OK. Submitting report...", "green");
+                    uploadSuccess = true;
                 } else {
-                    // Show the exact Cloudinary error detail in the UI.
                     const errMsg = (data && data.error && data.error.message)
                         ? data.error.message
                         : ("HTTP " + res.status + " - " + JSON.stringify(data).substring(0, 200));
                     console.warn("[Cloudinary] Upload failed:", errMsg, data);
-                    showCloudinaryStatus2("\u274C Cloudinary error: " + errMsg + " - submitting report with local image instead.", "red");
+                    showCloudinaryStatus2("❌ Cloudinary error: " + errMsg + ". Please try again.", "red");
                 }
             } catch (networkErr) {
                 console.warn("[Cloudinary] Network error:", networkErr);
-                showCloudinaryStatus2("\u274C Network error: " + networkErr.message + " - submitting report with local image instead.", "red");
+                showCloudinaryStatus2("❌ Network error: " + networkErr.message + ". Please check your connection and try again.", "red");
             }
 
-            // Mark done; next submit() call passes through the guard above.
+            // ── STEP 5: CLOUDINARY UPLOAD SUCCESSFUL? ──
+            // If Cloudinary upload failed, DO NOT silently submit without image! Block submission!
+            if (!uploadSuccess) {
+                if (submitBtn2) {
+                    submitBtn2.disabled    = false;
+                    submitBtn2.textContent = "🚀 Submit Waste Report";
+                }
+                if (imageError) {
+                    imageError.textContent = "⚠️ Failed to upload image to cloud storage. Please check connection and try again.";
+                    imageError.style.display = "block";
+                    imageError.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+                return; // BLOCK submission!
+            }
+
+            // ── STEP 6: SUBMIT REPORT TO BACKEND ──
             cloudinaryUploadDone = true;
 
             if (submitBtn2) {
-                submitBtn2.textContent = "\uD83D\uDE80 Submitting report...";
+                submitBtn2.textContent = "🚀 Submitting report...";
             }
 
             // Native (non-event-triggering) submit avoids re-entering this listener.
