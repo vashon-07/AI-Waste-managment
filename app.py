@@ -582,13 +582,33 @@ def submit_report():
     )
 
     # --- Step 1: Image Validation (Mandatory) ---
+    # First check the JS-only sentinel: _image_provided is set to '1' exclusively by the
+    # browser-side event handler when the user actively selects or captures an image.
+    # It is cleared on page load (cannot be restored by bfcache/autocomplete).
+    # If this is not '1', no new image was provided in this submission → reject immediately.
+    image_provided_sentinel = request.form.get("_image_provided", "").strip()
+    print(f"[SUBMISSION] _image_provided sentinel: '{image_provided_sentinel}'")
+    if image_provided_sentinel != "1":
+        print("[SUBMISSION] report rejected: _image_provided sentinel is not '1' — no new image in this session")
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message="Waste image is required. Please upload or capture an image before submitting."
+        )
+
     image = request.files.get("image")
     image_path = None
     image_bytes = None
 
     has_uploaded_file = bool(image and image.filename)
     cloudinary_url = request.form.get("cloudinary_image_url", "").strip()
-    has_cloudinary = bool(cloudinary_url and cloudinary_url.startswith("https://res.cloudinary.com/"))
+    # Only accept URLs from the project's own Cloudinary cloud account (ulc3tp6k)
+    has_cloudinary = bool(
+        cloudinary_url
+        and cloudinary_url.startswith("https://res.cloudinary.com/ulc3tp6k/")
+    )
+
 
     print(f"[SUBMISSION] image present: {has_uploaded_file or has_cloudinary} (file: {has_uploaded_file}, cloudinary: {has_cloudinary})")
 
