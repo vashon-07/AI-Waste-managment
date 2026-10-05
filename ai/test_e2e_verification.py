@@ -86,8 +86,39 @@ def _run_tests(tmp_db: str):
     print('Final API JSON Response:')
     print(json.dumps(api_data, indent=2))
 
-    # Step 9: Report Submission (/submit-report)
-    print('\n>>> [STEP 9] Submitting Citizen Report via POST /submit-report...')
+    # Step 9a: CASE A — No-image submission must be rejected, must NOT create a DB record
+    print('\n>>> [STEP 9a] CASE A: Submitting WITHOUT image (must be rejected, no DB record)...')
+    conn_tmp = sqlite3.connect(tmp_db)
+    records_before_no_img = conn_tmp.execute('SELECT COUNT(*) FROM reports').fetchone()[0]
+    conn_tmp.close()
+
+    no_image_response = client.post('/submit-report', data={
+        'reporter_name': 'Test User',
+        'description': 'No image submission test',
+        'latitude': '12.9716',
+        'longitude': '77.5946',
+        # NO _image_provided, NO image file
+    })
+    no_image_html = no_image_response.get_data(as_text=True)
+    no_image_shows_error = (
+        'image is required' in no_image_html.lower()
+        or 'please upload' in no_image_html.lower()
+    )
+    no_image_no_success = 'Report submitted successfully' not in no_image_html
+
+    conn_tmp = sqlite3.connect(tmp_db)
+    records_after_no_img = conn_tmp.execute('SELECT COUNT(*) FROM reports').fetchone()[0]
+    conn_tmp.close()
+    no_record_created = (records_before_no_img == records_after_no_img)
+
+    print(f' - HTTP status: {no_image_response.status_code}')
+    print(f' - Error message shown in HTML: {no_image_shows_error}')
+    print(f' - No success message: {no_image_no_success}')
+    print(f' - Records before={records_before_no_img}, after={records_after_no_img}')
+    print(f' - No DB record created: {no_record_created}')
+
+    # Step 9b: CASE B — Valid image submission
+    print('\n>>> [STEP 9b] CASE B: Submitting WITH valid image...')
     with open(image_path, 'rb') as f:
         submit_response = client.post('/submit-report', data={
             'reporter_name': 'Aarav Sharma',
@@ -137,11 +168,14 @@ def _run_tests(tmp_db: str):
         ('waste_type is normalized application category', waste_type == 'Plastic Waste'),
         ('severity is application heuristic logic', severity in ['Low', 'Medium', 'High', 'Critical']),
         ('priority_score is calculated numeric score', isinstance(priority_score, (int, float)) and priority_score > 0),
-        ('raw_label is persisted in SQLite', db_record.get('raw_label') == 'plastic'),
+        ('raw_label is persisted in SQLite (Case B)', db_record.get('raw_label') == 'plastic'),
         ('top_predictions contains multiple actual ViT model classes', len(api_data.get('top_predictions', [])) >= 3),
         ('no fallback classification was used', is_fallback is False and api_data.get('is_ready') is True),
         ('API endpoint status is 200 OK', api_response.status_code == 200),
-        ('Citizen report submission status is 200 OK', submit_response.status_code == 200),
+        ('Case B: valid-image report submission is 200 OK', submit_response.status_code == 200),
+        ('Case A: no-image shows error message in HTML', no_image_shows_error),
+        ('Case A: no-image response has no success message', no_image_no_success),
+        ('Case A: no-image submission creates NO DB record', no_record_created),
     ]
 
     all_passed = True
