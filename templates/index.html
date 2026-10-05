@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,14 +13,17 @@
 <body>
 
     <header>
-        <a href="/" class="logo-link"><div class="logo">♻️ AI WasteWatch</div></a>
+        <a href="/" class="logo-link">
+            <div class="logo">♻️ AI WasteWatch</div>
+        </a>
 
         <nav>
             <a href="/" class="active">Home</a>
             <a href="/report">Report Waste</a>
             {% if citizen %}
             <a href="/citizen-dashboard">👤 My Dashboard</a>
-            <a href="/citizen-logout" class="login-nav-btn" style="background: #e24a4a; padding: 6px 14px; font-size: 13px;">Sign Out 🚪</a>
+            <a href="/citizen-logout" class="login-nav-btn"
+                style="background: #e24a4a; padding: 6px 14px; font-size: 13px;">Sign Out 🚪</a>
             {% else %}
             <a href="/login">Citizen Login</a>
             {% endif %}
@@ -48,8 +52,8 @@
                 </p>
 
                 <a href="/report" class="report-btn">
-                📸 Report Waste
-               </a>
+                    📸 Report Waste
+                </a>
 
             </div>
 
@@ -90,4 +94,5 @@
     </main>
 
 </body>
+
 </html>
