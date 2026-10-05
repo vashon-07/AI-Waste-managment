@@ -12,6 +12,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 import app as app_module
+import cloud_db
 from app import app
 from ai.classifier import get_classifier
 from ai.predict import predict_waste
@@ -22,14 +23,20 @@ def main():
     # ------------------------------------------------------------------
     tmp_dir = tempfile.mkdtemp(prefix="wastewatch_test_")
     tmp_db  = os.path.join(tmp_dir, "wastewatch_test.db")
-    original_db_path = app_module.DB_PATH
-    app_module.DB_PATH = tmp_db
+    original_db_path = getattr(app_module, "DB_PATH", None)
+    original_cloud_db_path = cloud_db.LOCAL_DB_PATH
+    if original_db_path:
+        app_module.DB_PATH = tmp_db
+    cloud_db.LOCAL_DB_PATH = tmp_db
+    cloud_db.init_cloud_db()
     app_module.init_db()   # create schema in temp DB
 
     try:
         _run_tests(tmp_db)
     finally:
-        app_module.DB_PATH = original_db_path  # restore
+        if original_db_path:
+            app_module.DB_PATH = original_db_path  # restore
+        cloud_db.LOCAL_DB_PATH = original_cloud_db_path
         shutil.rmtree(tmp_dir, ignore_errors=True)
         print("\n[TEST] Temp database cleaned up.")
 
@@ -89,6 +96,7 @@ def _run_tests(tmp_db: str):
             'address': 'MG Road, Ward 4, Bengaluru',
             'latitude': '12.9716',
             'longitude': '77.5946',
+            '_image_provided': '1',
             'image': (io.BytesIO(f.read()), 'plastic_bottle.jpg')
         })
     print(f'Submit Report HTTP Status Code: {submit_response.status_code}')
