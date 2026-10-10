@@ -304,6 +304,11 @@
                     <!-- Waste Classification -->
                     <div class="waste-type-tag">
                         🏷️ <strong>AI Classification:</strong> {{ r.waste_type or 'General Waste' }}
+                        {% if r.reason %}
+                        <div style="font-size: 12px; color: #4b5563; margin-top: 4px;"><strong>AI Assessment:</strong> {{ r.reason }}</div>
+                        {% elif r.raw_label %}
+                        <div style="font-size: 12px; color: #4b5563; margin-top: 4px;"><strong>AI Assessment:</strong> {{ r.raw_label }}</div>
+                        {% endif %}
                     </div>
 
                     <!-- Description -->

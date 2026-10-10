@@ -126,6 +126,10 @@ def init_db():
         cursor.execute("ALTER TABLE reports ADD COLUMN raw_label TEXT")
     except Exception:
         pass
+    try:
+        cursor.execute("ALTER TABLE reports ADD COLUMN reason TEXT")
+    except Exception:
+        pass
 
     # Ensure users table exists
     cursor.execute("""
@@ -542,7 +546,7 @@ def catch_all(path):
 
 @app.route("/api/classify", methods=["POST"])
 def api_classify():
-    """Real-time Waste Classification API using Hugging Face Vision Transformer."""
+    """Real-time Waste Classification API using trained YOLOv8 model."""
     image_input = None
 
     # Check for multipart file upload
@@ -564,7 +568,8 @@ def api_classify():
 
     try:
         prediction = predict_waste(image_input)
-        return jsonify(prediction)
+        status_code = 200 if prediction.get("success") else 400
+        return jsonify(prediction), status_code
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -695,33 +700,31 @@ def submit_report():
     print(f"[SUBMISSION] latitude/longitude validity: Valid ({lat}, {lng})")
     print(f"[SUBMISSION] report accepted: all validations passed")
 
-    # --- Priority 1: browser-side Transformers.js classification ---
-    # The report form now submits hidden fields populated by browser AI.
-    waste_type     = request.form.get("browser_waste_type", "").strip() or None
-    raw_label      = request.form.get("browser_raw_label",  "").strip() or None
-    severity       = request.form.get("browser_severity",   "").strip() or None
-    priority_score_str = request.form.get("browser_priority_score", "").strip()
-    try:
-        priority_score = float(priority_score_str) if priority_score_str else None
-    except ValueError:
-        priority_score = None
+    # --- Primary AI Pipeline: YOLO Object Detection & Severity Assessment ---
+    ai_input = image_bytes or image_path
+    ai_res = None
+    if ai_input:
+        try:
+            ai_res = predict_waste(ai_input)
+        except Exception as e:
+            ai_res = {"success": False, "error": str(e)}
 
-    # --- Priority 2: Python Hugging Face ViT model (fallback) ---
-    if not waste_type or not severity or priority_score is None:
-        if image_bytes:
-            try:
-                ai_res = predict_waste(image_bytes)
-                if ai_res and ai_res.get("success"):
-                    waste_type     = waste_type     or ai_res.get("waste_type")
-                    raw_label      = raw_label      or ai_res.get("raw_label")
-                    severity       = severity       or ai_res.get("severity")
-                    priority_score = priority_score if priority_score is not None else ai_res.get("priority_score")
-            except Exception:
-                pass
+    # Enforce strict validation: do not fabricate results if inference fails
+    if not ai_res or not ai_res.get("success"):
+        err_msg = (ai_res.get("error") if ai_res else None) or "Unable to process the image for AI waste detection. Please provide a clear, valid image file."
+        print(f"[SUBMISSION] AI detection failed: {err_msg}")
+        citizen = get_current_citizen()
+        return render_template(
+            "report.html",
+            citizen=citizen,
+            error_message=f"⚠️ AI Waste Detection Failed: {err_msg}"
+        )
 
-    # --- Priority 3: heuristic text/filename analysis ---
-    if not waste_type or not severity or priority_score is None:
-        waste_type, severity, priority_score = analyze_waste_ai(description, image.filename if image else "")
+    waste_type = ai_res.get("waste_type") or "Municipal Waste"
+    raw_label = ai_res.get("raw_label") or ""
+    severity = ai_res.get("severity") or "LOW"
+    priority_score = float(ai_res.get("priority_score", 0.0))
+    reason = ai_res.get("reason") or ""
 
     citizen = get_current_citizen()
     if citizen:
@@ -742,12 +745,13 @@ def submit_report():
         "raw_label": raw_label,
         "severity": severity,
         "priority_score": priority_score,
+        "reason": reason,
     })
 
     return render_template(
         "report.html",
         citizen=citizen,
-        success_message=f"🎉 Report submitted successfully! AI identified: {waste_type} (Priority: {severity}). Assigned to Municipal Field Officers."
+        success_message=f"🎉 Report submitted successfully! AI identified: {waste_type} (Priority: {severity} - Score: {priority_score}%). Assessment: {reason}. Assigned to Municipal Field Officers."
     )
 
 

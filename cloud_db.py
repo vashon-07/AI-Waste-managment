@@ -157,6 +157,10 @@ def init_cloud_db():
             cursor.execute("ALTER TABLE reports ADD COLUMN raw_label TEXT")
         except Exception:
             pass
+        try:
+            cursor.execute("ALTER TABLE reports ADD COLUMN reason TEXT")
+        except Exception:
+            pass
 
         # Create users table for citizen accounts
         cursor.execute("""
@@ -345,7 +349,7 @@ def insert_report(data):
                 "latitude": lat,
                 "longitude": lng,
                 "waste_type": data.get("waste_type", "Mixed Municipal Waste"),
-                "raw_label": data.get("raw_label", ""),
+                "raw_label": data.get("raw_label", "") or data.get("reason", ""),
                 "severity": data.get("severity", "Medium"),
                 "priority_score": float(data.get("priority_score", 50.0)),
                 "status": "Pending"
@@ -365,24 +369,48 @@ def insert_report(data):
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO reports
-            (reporter_name, reporter_phone, image_path, description, address, latitude, longitude, waste_type, raw_label, severity, priority_score, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            data.get("reporter_name", "Anonymous Citizen"),
-            data.get("reporter_phone", ""),
-            image_path,
-            data.get("description", ""),
-            data.get("address", ""),
-            lat,
-            lng,
-            data.get("waste_type", "Mixed Municipal Waste"),
-            data.get("raw_label", ""),
-            data.get("severity", "Medium"),
-            float(data.get("priority_score", 50.0)),
-            "Pending"
-        ))
+        cursor.execute("PRAGMA table_info(reports)")
+        cols = [col[1] for col in cursor.fetchall()]
+
+        if "reason" in cols:
+            cursor.execute("""
+                INSERT INTO reports
+                (reporter_name, reporter_phone, image_path, description, address, latitude, longitude, waste_type, raw_label, severity, priority_score, status, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get("reporter_name", "Anonymous Citizen"),
+                data.get("reporter_phone", ""),
+                image_path,
+                data.get("description", ""),
+                data.get("address", ""),
+                lat,
+                lng,
+                data.get("waste_type", "Mixed Municipal Waste"),
+                data.get("raw_label", "") or data.get("reason", ""),
+                data.get("severity", "Medium"),
+                float(data.get("priority_score", 50.0)),
+                "Pending",
+                data.get("reason", "")
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO reports
+                (reporter_name, reporter_phone, image_path, description, address, latitude, longitude, waste_type, raw_label, severity, priority_score, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get("reporter_name", "Anonymous Citizen"),
+                data.get("reporter_phone", ""),
+                image_path,
+                data.get("description", ""),
+                data.get("address", ""),
+                lat,
+                lng,
+                data.get("waste_type", "Mixed Municipal Waste"),
+                data.get("raw_label", "") or data.get("reason", ""),
+                data.get("severity", "Medium"),
+                float(data.get("priority_score", 50.0)),
+                "Pending"
+            ))
         conn.commit()
         conn.close()
         return True

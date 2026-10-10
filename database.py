@@ -41,6 +41,10 @@ def create_database():
         cursor.execute("ALTER TABLE reports ADD COLUMN raw_label TEXT")
     except Exception:
         pass
+    try:
+        cursor.execute("ALTER TABLE reports ADD COLUMN reason TEXT")
+    except Exception:
+        pass
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
